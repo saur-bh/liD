@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🇩🇪 LiD Trainer — Tailwind (No React, shadcn‑style)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="description" content="Leben in Deutschland study app: flashcards, quiz, spaced repetition, XP/hearts/streak, import/export/paste 300 questions. Pure Tailwind + vanilla JS (shadcn-style)." />
+  <script>
+    // Tailwind theme tokens roughly matching shadcn/ui feel
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(214 31% 91%)',
+            background: 'hsl(0 0% 100%)',
+            foreground: 'hsl(222.2 47.4% 11.2%)',
+            muted: 'hsl(210 40% 96%)',
+            card: 'hsl(0 0% 100%)',
+            primary: { DEFAULT: 'hsl(222.2 47.4% 11.2%)' },
+            ring: 'hsl(215 20.2% 65.1%)',
+          },
+          boxShadow: { card: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 1px -1px rgb(0 0 0 / 0.04)' },
+          borderRadius: { xl: '0.75rem', '2xl': '1rem' },
+        }
+      }
+    };
+  </script>
+  <style>
+    .btn{ @apply inline-flex items-center justify-center px-4 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[.98] transition-all duration-200 font-medium text-sm shadow-sm; }
+    .btn-primary{ @apply bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:border-slate-800 shadow-md; }
+    .btn-secondary{ @apply bg-slate-100 text-slate-900 border-slate-200 hover:bg-slate-200; }
+    .btn-success{ @apply bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700; }
+    .btn-danger{ @apply bg-red-600 text-white border-red-600 hover:bg-red-700; }
+    .chip{ @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700; }
+    .chip-primary{ @apply bg-slate-900 text-white border-slate-900; }
+    .chip-success{ @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
+    .chip-warning{ @apply bg-amber-50 text-amber-700 border-amber-200; }
+    .card{ @apply rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 p-6; }
+    .card-interactive{ @apply hover:border-slate-300 cursor-pointer; }
+    .card-header{ @apply border-b border-slate-100 pb-4 mb-4; }
+    .input{ @apply px-3 py-2.5 rounded-lg border border-slate-200 bg-white w-full focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all; }
+    .kbd{ @apply px-2 py-1 rounded-md border border-slate-200 bg-slate-100 text-xs font-mono; }
+    .choice-btn{ @apply w-full text-left p-4 sm:p-4 rounded-lg border-2 border-slate-200 bg-gradient-to-r from-white to-slate-50 hover:border-purple-300 hover:from-purple-50 hover:to-pink-50 transition-all duration-200 font-medium text-sm sm:text-base min-h-[48px] flex items-center touch-manipulation active:scale-95; }
+    .choice-btn-selected{ @apply border-purple-500 bg-gradient-to-r from-purple-100 to-pink-100 shadow-md; }
+    .choice-btn-correct{ @apply border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-900 shadow-lg animate-pulse; }
+    .choice-btn-incorrect{ @apply border-red-500 bg-gradient-to-r from-red-50 to-pink-100 text-red-900 shadow-lg; }
+    
+    /* Swipe animations and mobile optimizations */
+    .swipeable { @apply transition-transform duration-300 ease-out; }
+    .swipe-indicator { @apply transition-all duration-200; }
+    .swipe-hint { @apply transition-opacity duration-500; }
+    
+    /* Mobile touch improvements */
+    @media (max-width: 640px) {
+      .card { @apply mx-2; }
+      .btn { @apply min-h-[44px] touch-manipulation; }
+      .chip { @apply min-h-[28px] touch-manipulation; }
+    }
+    
+    /* Prevent text selection during swipe */
+    .swipeable * { @apply select-none; }
+    
+    /* Enhanced visual feedback for swipe actions */
+    .swipeable:active .swipe-indicator { @apply opacity-100 scale-110; }
+    .swipeable.swiping { @apply cursor-grabbing; }
+  </style>
+</head>
+<body class="min-h-full bg-gradient-to-br from-purple-100 via-pink-50 to-orange-100 text-slate-900">
+  <header class="sticky top-0 z-10 backdrop-blur-md bg-gradient-to-r from-purple-500/90 via-pink-500/90 to-orange-500/90 border-b border-white/20 shadow-lg">
+    <div class="max-w-6xl mx-auto px-6 py-4">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-yellow-100 bg-clip-text text-transparent drop-shadow-sm">🇩🇪 LiD Trainer</h1>
+          <p class="text-xs sm:text-sm text-white/90 mt-1 drop-shadow-sm">Leben in Deutschland • Mobile Friendly</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="themeToggle" class="btn bg-white/20 border-white/30 text-white hover:bg-white/30 text-sm sm:text-base" title="Toggle dark mode">
+            <span class="text-base sm:text-lg">🌙</span>
+          </button>
+          <div class="flex items-center gap-1 sm:gap-2 flex-wrap">
+            <div class="chip bg-yellow-400/90 text-yellow-900 border-yellow-500/50 text-xs sm:text-sm"><span class="font-bold">XP</span><span id="xp">0</span></div>
+            <div class="chip bg-red-400/90 text-red-900 border-red-500/50 text-xs sm:text-sm"><span class="font-bold">Hearts</span><span id="hearts">❤❤❤</span></div>
+            <div class="chip bg-orange-400/90 text-orange-900 border-orange-500/50 text-xs sm:text-sm"><span class="font-bold">Streak</span><span id="streak">0 🔥</span></div>
+          </div>
+        </div>
+      </div>
+      <nav class="grid grid-cols-5 gap-1 sm:gap-3">
+        <button data-tab="learn" class="btn bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 text-xs sm:text-sm px-2 sm:px-4 py-2">📚 <span class="hidden sm:inline">Learn</span></button>
+        <button data-tab="quiz" class="btn bg-white/20 border-white/30 text-white hover:bg-white/30 text-xs sm:text-sm px-2 sm:px-4 py-2">🎯 <span class="hidden sm:inline">Quiz</span></button>
+        <button data-tab="review" class="btn bg-white/20 border-white/30 text-white hover:bg-white/30 text-xs sm:text-sm px-2 sm:px-4 py-2">📖 <span class="hidden sm:inline">Review</span></button>
+        <button data-tab="plan" class="btn bg-white/20 border-white/30 text-white hover:bg-white/30 text-xs sm:text-sm px-2 sm:px-4 py-2">📊 <span class="hidden sm:inline">Plan</span></button>
+        <button data-tab="data" class="btn bg-white/20 border-white/30 text-white hover:bg-white/30 text-xs sm:text-sm px-2 sm:px-4 py-2">💾 <span class="hidden sm:inline">Data</span></button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
+     <div class="card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+         <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+           <label class="text-sm font-semibold text-slate-700">Filter by Topic</label>
+           <select id="topicFilter" class="input max-w-full sm:max-w-xs text-sm"></select>
+         </div>
+         <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 text-sm w-full sm:w-auto">
+           <div class="flex items-center gap-2">
+             <span class="w-3 h-3 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full animate-pulse"></span>
+             <span class="text-slate-600">Due today: <span class="font-bold text-emerald-700 text-base" id="dueCount">0</span></span>
+           </div>
+           <div class="flex items-center gap-2">
+             <span class="w-3 h-3 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full"></span>
+             <span class="text-slate-600">Total: <span class="font-bold text-purple-700 text-base" id="totalCount">0</span></span>
+           </div>
+         </div>
+       </div>
+     </div>
+
+    <!-- Views -->
+    <section id="view-learn" class="space-y-4"></section>
+    <section id="view-quiz" class="space-y-4 hidden"></section>
+    <section id="view-review" class="space-y-4 hidden"></section>
+    <section id="view-plan" class="space-y-6 hidden">
+      <div class="card" id="planCard"></div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <span class="text-2xl">🧠</span>
+            Exam Memory Hacks
+          </h3>
+          <p class="text-sm text-slate-600 mt-1">Quick mnemonics and tips to remember key facts faster</p>
+        </div>
+        <div class="space-y-4">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200">
+              <h4 class="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                <span>🇩🇪</span> Flag & Dates
+              </h4>
+              <ul class="space-y-2 text-sm text-slate-700">
+                <li><span class="font-semibold text-slate-900">SRG</span> = Flag colors: <em>Schwarz–Rot–Gold</em></li>
+                <li><span class="font-semibold text-slate-900">3→10</span> = German Unity Day: <em>3. Oktober</em></li>
+                <li><span class="font-semibold text-slate-900">Wall</span> fell <span class="font-semibold text-slate-900">9 Nov 1989</span> → not 3 Oct</li>
+              </ul>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
+              <h4 class="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                <span>🏛️</span> Government
+              </h4>
+              <ul class="space-y-2 text-sm text-slate-700">
+                <li><span class="font-semibold text-slate-900">Bundestag</span> makes laws</li>
+                <li><span class="font-semibold text-slate-900">Bundesrat</span> = states' council</li>
+                <li><span class="font-semibold text-slate-900">Bundespräsident</span> = head of state</li>
+                <li><span class="font-semibold text-slate-900">Kanzler</span> = head of government</li>
+              </ul>
+            </div>
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+              <h4 class="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                <span>⚖️</span> Rights & Laws
+              </h4>
+              <ul class="space-y-2 text-sm text-slate-700">
+                <li><span class="font-semibold text-slate-900">18</span> years = vote in federal elections</li>
+                <li><span class="font-semibold text-slate-900">Art. 3 GG</span>: men & women equal</li>
+                <li><span class="font-semibold text-slate-900">GG</span> = <em>Grundgesetz</em> (Basic Law)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section id="view-data" class="space-y-4 sm:space-y-6 hidden">
+      <div class="card bg-gradient-to-br from-white to-purple-50 border-purple-200">
+        <div class="card-header">
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+            <span class="text-xl sm:text-2xl">📊</span>
+            Manage Questions
+          </h2>
+          <p class="text-sm text-slate-600 mt-1">Import, export, and manage your question database</p>
+        </div>
+        <div class="space-y-3 sm:space-y-4">
+          <div class="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
+            <button id="exportBtn" class="btn bg-gradient-to-r from-green-500 to-emerald-600 text-white border-green-600 hover:from-green-600 hover:to-emerald-700 text-sm">📤 Export JSON</button>
+            <label class="btn bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-blue-600 hover:from-blue-600 hover:to-indigo-700 cursor-pointer text-sm">📥 Import JSON <input id="importFile" type="file" accept="application/json" class="hidden" /></label>
+            <button id="resetBtn" class="btn bg-gradient-to-r from-orange-500 to-red-600 text-white border-orange-600 hover:from-orange-600 hover:to-red-700 text-sm">🔄 Reset Starter Pack</button>
+          </div>
+          <div class="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-3 sm:p-4 border border-yellow-200">
+            <p class="text-xs text-slate-700 font-mono font-semibold">Schema: { id, topic, q, choices[4], a(index), en, tip, box?, due? }</p>
+          </div>
+          <textarea id="jsonPreview" class="w-full h-36 sm:h-48 p-3 sm:p-4 border border-purple-200 rounded-lg text-xs font-mono bg-gradient-to-br from-slate-50 to-purple-50" readonly placeholder="JSON data will appear here..."></textarea>
+        </div>
+      </div>
+      <div class="card bg-gradient-to-br from-white to-orange-50 border-orange-200">
+        <div class="card-header">
+          <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <span class="text-xl animate-pulse">⚡</span>
+            Bulk Add Questions
+          </h3>
+          <p class="text-sm text-slate-600 mt-1">Quickly add multiple questions using pipe-separated format</p>
+        </div>
+        <div class="space-y-3 sm:space-y-4">
+          <div class="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg p-3 sm:p-4 border border-cyan-200">
+            <p class="text-xs text-slate-700 font-mono font-semibold">Format: <code class="bg-white px-2 py-1 rounded border border-cyan-300 text-cyan-800">id | topic | question | choiceA | choiceB | choiceC | choiceD | correctIndex(0-3) | en | tip</code></p>
+          </div>
+          <textarea id="bulkPaste" class="w-full h-32 sm:h-36 p-3 sm:p-4 border border-orange-200 rounded-lg text-xs font-mono bg-gradient-to-br from-slate-50 to-orange-50" placeholder="1 | Politik in der Demokratie | Wie heißt die deutsche Verfassung? | Grundgesetz | Bundesgesetz | Staatsgesetz | Verfassungsgesetz | 0 | Basic Law | Grund=basic, Gesetz=law"></textarea>
+          <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <button id="bulkAdd" class="btn bg-gradient-to-r from-purple-500 to-pink-600 text-white border-purple-600 hover:from-purple-600 hover:to-pink-700 text-sm">✨ Parse & Add</button>
+            <button id="clearPaste" class="btn bg-gradient-to-r from-gray-500 to-slate-600 text-white border-gray-600 hover:from-gray-600 hover:to-slate-700 text-sm">🗑️ Clear</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-5xl mx-auto px-4 pb-10 text-xs text-slate-500">
+    Pure Tailwind + vanilla JS. Progress saved in your browser. Use Data → Import to load all 300.
+  </footer>
+
+  <!-- Templates -->
+  <template id="flashcard-tpl">
+    <div class="card card-interactive swipeable bg-gradient-to-br from-white to-blue-50 border-blue-200 touch-pan-y select-none relative overflow-hidden">
+      <div class="swipe-indicator absolute top-2 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-slate-300 rounded-full opacity-50"></div>
+      <div class="swipe-hint absolute top-4 right-4 text-xs text-slate-400 animate-pulse">👈👉 Swipe</div>
+      <div class="card-header">
+        <div class="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
+          <div class="flex-1 w-full">
+            <div class="flex flex-wrap gap-1 sm:gap-2 mb-3">
+              <span class="chip bg-purple-100 text-purple-800 border-purple-200 text-xs">📦 Box <span data-box></span></span>
+              <span class="chip bg-orange-100 text-orange-800 border-orange-200 text-xs">📅 Due <span data-due></span></span>
+              <span class="chip bg-blue-100 text-blue-800 border-blue-200 text-xs" data-topic></span>
+            </div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight" data-q></h2>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="chip bg-slate-100 text-slate-700 text-xs">Card <span data-idx></span></span>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-3 sm:space-y-4">
+        <div class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-3 sm:p-4 border border-emerald-200">
+          <p class="text-sm text-slate-700"><span class="font-semibold text-emerald-800">🇬🇧 English:</span> <span data-en></span></p>
+          <p class="text-sm text-emerald-700 mt-2"><span class="font-semibold text-emerald-800">💡 Tip:</span> <span data-tip></span></p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-choices></div>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 sm:pt-4 border-t border-slate-100 gap-3">
+          <div class="text-sm text-slate-600">Answer: <span class="font-bold text-purple-700" data-correct></span></div>
+          <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
+            <button class="btn btn-secondary flex-1 sm:flex-none text-sm active:scale-95 transition-transform" data-skip>⏭️ Skip</button>
+            <button class="btn bg-gradient-to-r from-emerald-500 to-green-600 text-white border-emerald-600 hover:from-emerald-600 hover:to-green-700 flex-1 sm:flex-none text-sm active:scale-95 transition-transform" data-next>✅ Next</button>
+          </div>
+        </div>
+        <div class="text-center text-xs text-slate-500 mt-2 flex items-center justify-center gap-2">
+          <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full">👈 Skip</span>
+          <span class="text-slate-400">|</span>
+          <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full">Next 👉</span>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="quizcard-tpl">
+    <div class="card swipeable bg-gradient-to-br from-white to-pink-50 border-pink-200 touch-pan-y select-none relative overflow-hidden">
+      <div class="swipe-indicator absolute top-2 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-pink-300 rounded-full opacity-50"></div>
+      <div class="swipe-hint absolute top-4 right-4 text-xs text-pink-400 animate-pulse">👈👉 Swipe</div>
+      <div class="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
+        <div class="flex-1 w-full">
+          <div class="mb-3"><span class="chip bg-pink-100 text-pink-800 border-pink-200 text-xs" data-topic></span></div>
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight" data-q></h2>
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 mt-3 border border-blue-200">
+            <p class="text-sm text-slate-700"><span class="font-semibold text-blue-800">🇬🇧 English:</span> <span data-en></span></p>
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <span class="chip bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">Q <span data-idx></span></span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mt-4" data-choices></div>
+      <div class="mt-3 text-sm bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200" data-feedback></div>
+      <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-slate-600 font-semibold">Hearts:</span>
+          <span class="text-lg animate-pulse" id="hearts-inline">❤❤❤</span>
+        </div>
+        <button class="btn bg-gradient-to-r from-purple-500 to-pink-600 text-white border-purple-600 hover:from-purple-600 hover:to-pink-700 w-full sm:w-auto text-sm active:scale-95 transition-transform" data-next>✨ Next</button>
+      </div>
+      <div class="text-center text-xs text-slate-500 mt-2 flex items-center justify-center gap-2">
+        <span class="bg-orange-100 text-orange-700 px-2 py-1 rounded-full">👈 Previous</span>
+        <span class="text-slate-400">|</span>
+        <span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full">Next 👉</span>
+      </div>
+    </div>
+  </template>
+
+  <script>
+  // ===== Utilities =====
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const todayISO = () => new Date().toISOString().slice(0,10);
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const BOX_STEPS = {1:1, 2:2, 3:4, 4:7, 5:15};
+  const shuffle = (arr) => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(([,v])=>v);
+  
+
+  // ===== Starter data (you can import all 300 in Data tab) =====
+  let STARTER_PACK = [
+    { id: 1, topic: "Politik in der Demokratie", q: "Wie heißt die deutsche Verfassung?", choices: ["Grundgesetz", "Deutsches Gesetzbuch", "Staatsvertrag", "Bundesverordnung"], a: 0, en: "Basic Law", tip: "Grund = basic, Gesetz = law" },
+    { id: 2, topic: "Politik in der Demokratie", q: "Was ist KEIN Grundrecht in Deutschland?", choices: ["Versammlungsfreiheit", "Meinungsfreiheit", "Waffenbesitz", "Glaubensfreiheit"], a: 2, en: "Owning weapons is not a fundamental right.", tip: "You can speak, believe, meet — but no guns." },
+    { id: 3, topic: "Politik in der Demokratie", q: "Was ist ein Grundrecht in Deutschland?", choices: ["Pressefreiheit", "Steuerfreiheit", "Schulpflicht", "Dienstpflicht"], a: 0, en: "Freedom of the press.", tip: "Press is free → Pressefreiheit" },
+    { id: 4, topic: "Politik in der Demokratie", q: "Deutschland ist …?", choices: ["eine Diktatur", "ein Bundesstaat", "ein Kaiserstaat", "eine Kolonie"], a: 1, en: "Germany is a federal state (federation).", tip: "Bund = federal / together" },
+    { id: 5, topic: "Politik in der Demokratie", q: "Was bedeutet 'Rechtsstaat'?", choices: ["Alle halten sich an das Recht", "Nur die Regierung folgt dem Recht", "Die Polizei macht das Recht", "Richter sind Politiker"], a: 0, en: "Everyone must follow the law.", tip: "Recht = law → rule of law" },
+    { id: 6, topic: "Politik in der Demokratie", q: "Was bedeutet 'Sozialstaat'?", choices: ["Der Staat hilft Menschen in Not", "Der Staat gehört Unternehmen", "Der Staat verbietet Parteien", "Der Staat erhebt keine Steuern"], a: 0, en: "Welfare state: the state helps people in need.", tip: "Sozial = help/support" },
+    { id: 7, topic: "Politik in der Demokratie", q: "Wer beschließt neue Gesetze in Deutschland?", choices: ["Der Bundestag", "Der Bundespräsident", "Der Bundesrat allein", "Das Bundesverfassungsgericht"], a: 0, en: "Bundestag (parliament) passes laws.", tip: "Tag = meeting day → lawmakers" },
+    { id: 8, topic: "Politik in der Demokratie", q: "Der Bundesrat ist …?", choices: ["die Regierung", "ein Gericht", "die Vertretung der Länder", "die Polizei"], a: 2, en: "Representation of the federal states.", tip: "Rat = council; Länder vertreten" },
+    { id: 9, topic: "Politik in der Demokratie", q: "Wer wählt den Bundeskanzler / die Bundeskanzlerin?", choices: ["das Volk direkt", "der Bundestag", "der Bundesrat", "der Bundespräsident"], a: 1, en: "The Bundestag elects the Chancellor.", tip: "Parliament chooses the head of government" },
+    { id: 10, topic: "Politik in der Demokratie", q: "Wer ist das Staatsoberhaupt Deutschlands?", choices: ["der Bundeskanzler", "der Bundestagspräsident", "der Bundespräsident", "der Ministerpräsident"], a: 2, en: "Federal President is the head of state.", tip: "Präsident = representative/signs laws" },
+    { id: 11, topic: "Politik in der Demokratie", q: "Wie viele Bundesländer hat Deutschland?", choices: ["14", "15", "16", "17"], a: 2, en: "Germany has 16 federal states.", tip: "Merke: 16 Länder" },
+    { id: 12, topic: "Politik in der Demokratie", q: "Welche sind Stadtstaaten?", choices: ["Bayern, Hessen", "Berlin, Hamburg, Bremen", "NRW, Sachsen", "Saarland, Thüringen"], a: 1, en: "Berlin, Hamburg, Bremen are city states.", tip: "BHB = three city-states" },
+    { id: 13, topic: "Politik in der Demokratie", q: "Was ist die Hauptstadt Deutschlands?", choices: ["Berlin", "Bonn", "München", "Frankfurt am Main"], a: 0, en: "Capital is Berlin.", tip: "Reichstag in Berlin" },
+    { id: 14, topic: "Politik in der Demokratie", q: "Welche Farben hat die deutsche Flagge?", choices: ["Schwarz-Rot-Gold", "Schwarz-Gelb-Rot", "Rot-Schwarz-Orange", "Rot-Gold-Blau"], a: 0, en: "Black-Red-Gold.", tip: "SRG order" },
+    { id: 15, topic: "Politik in der Demokratie", q: "Wie heißt die Nationalhymne?", choices: ["Deutschlandlied", "Ode an die Freude", "Wacht am Rhein", "Einigkeit und Recht und Freiheit"], a: 0, en: "'Deutschlandlied' (3rd verse).", tip: "Einigkeit und Recht und Freiheit" },
+    { id: 16, topic: "Politik in der Demokratie", q: "Wie heißt das höchste Gericht in Deutschland?", choices: ["Bundesverwaltungsgericht", "Bundesgerichtshof", "Bundesfinanzhof", "Bundesverfassungsgericht"], a: 3, en: "Federal Constitutional Court.", tip: "Verfassung = constitution → Karlsruhe" },
+    { id: 17, topic: "Politik in der Demokratie", q: "Wo tagt der Deutsche Bundestag?", choices: ["Schloss Bellevue", "Reichstagsgebäude in Berlin", "Bundeskanzleramt", "Bundesrat"], a: 1, en: "Reichstag building, Berlin.", tip: "Glass dome = Reichstag" },
+    { id: 18, topic: "Politik in der Demokratie", q: "Ab welchem Alter darf man den Bundestag wählen?", choices: ["16", "17", "18", "21"], a: 2, en: "18 for federal elections.", tip: "18 = adult (federal)" },
+    { id: 19, topic: "Geschichte & Verantwortung", q: "Wann ist der Tag der Deutschen Einheit?", choices: ["3. Oktober", "9. November", "1. Mai", "25. Dezember"], a: 0, en: "3 October (national holiday).", tip: "10-03 = Einheit" },
+    { id: 20, topic: "Geschichte & Verantwortung", q: "Wann fiel die Berliner Mauer?", choices: ["3. Oktober 1990", "9. November 1989", "1. September 1939", "17. Juni 1953"], a: 1, en: "9 November 1989.", tip: "11/09/89 (not 3 Oct)" },
+    { id: 21, topic: "Geschichte & Verantwortung", q: "Wann war die Wiedervereinigung?", choices: ["9. November 1989", "3. Oktober 1990", "1. Januar 1999", "8. Mai 1945"], a: 1, en: "3 October 1990.", tip: "Einheit = 3.10" },
+    { id: 22, topic: "Geschichte & Verantwortung", q: "Wann war die NS-Diktatur in Deutschland?", choices: ["1918–1933", "1933–1945", "1949–1990", "1961–1989"], a: 1, en: "1933–1945 (Nazi dictatorship).", tip: "12 years of terror" },
+    { id: 23, topic: "Geschichte & Verantwortung", q: "Wie heißt der Geheimdienst der DDR?", choices: ["Gestapo", "Verfassungsschutz", "Stasi", "BND"], a: 2, en: "Stasi (state security).", tip: "DDR = Stasi" },
+    { id: 24, topic: "Geschichte & Verantwortung", q: "Der 27. Januar ist ein Gedenktag für …", choices: ["die deutsche Einheit", "die Opfer des Nationalsozialismus", "die Wiedervereinigung", "die EU"], a: 1, en: "Victims of National Socialism.", tip: "Auschwitz liberation 27.01.1945" },
+    { id: 25, topic: "Geschichte & Verantwortung", q: "Wirtschaftssystem der DDR?", choices: ["soziale Marktwirtschaft", "Planwirtschaft", "Freihandel", "Kapitalismus pur"], a: 1, en: "Planned economy.", tip: "DDR = Plan" },
+    { id: 26, topic: "Geschichte & Verantwortung", q: "Wirtschaftssystem der BRD?", choices: ["Planwirtschaft", "Kommunismus", "soziale Marktwirtschaft", "Feudalismus"], a: 2, en: "Social market economy.", tip: "Sozial + Markt" },
+    { id: 27, topic: "Mensch & Gesellschaft", q: "Welche Währung hat Deutschland?", choices: ["D-Mark", "Euro", "Franken", "Kronen"], a: 1, en: "Euro.", tip: "€ cash since 2002" },
+    { id: 28, topic: "Politik in der Demokratie", q: "Wer wählt den Bundespräsidenten / die Bundespräsidentin?", choices: ["der Bundestag", "die Bundesversammlung", "das Volk direkt", "der Bundesrat"], a: 1, en: "Federal Convention (Bundesversammlung).", tip: "Bundestag + Länder delegates" },
+    { id: 29, topic: "Politik in der Demokratie", q: "Was macht der Bundespräsident u. a.?", choices: ["er ernennt/entlässt Minister und unterschreibt Gesetze", "er entscheidet Gerichtsurteile", "er macht das Budget", "er wählt die Kanzlerin"], a: 0, en: "Appoints/dismisses ministers; signs laws.", tip: "Represents & signs" },
+    { id: 30, topic: "Politik in der Demokratie", q: "Wie heißt die Hürde für Parteien im Bundestag?", choices: ["3-%-Hürde", "4-%-Hürde", "5-%-Hürde", "10-%-Hürde"], a: 2, en: "5 percent threshold.", tip: "5% to enter Bundestag" },
+    { id: 31, topic: "Politik in der Demokratie", q: "Was bedeutet 'Pressefreiheit'?", choices: ["Staat schreibt die Artikel", "Zeitungen berichten frei", "Nur positive Nachrichten", "Nur staatliche Medien"], a: 1, en: "Press may report freely.", tip: "critical reporting allowed" },
+    { id: 32, topic: "Politik in der Demokratie", q: "Was bedeutet 'Religionsfreiheit'?", choices: ["Nur christliche Religion erlaubt", "Jede Religion oder keine", "Religion ist Pflicht", "Nur zwei Religionen"], a: 1, en: "Any religion or none.", tip: "choose belief freely" },
+    { id: 33, topic: "Mensch & Gesellschaft", q: "Was steht zur Gleichberechtigung im Grundgesetz?", choices: ["Männer und Frauen sind gleichberechtigt", "Männer haben mehr Rechte", "Frauen entscheiden alles", "Keine Regelung"], a: 0, en: "Men and women have equal rights.", tip: "Art. 3 GG" },
+    { id: 34, topic: "Mensch & Gesellschaft", q: "Was bedeutet Schulpflicht?", choices: ["Kinder dürfen nicht zur Schule", "Kinder müssen zur Schule", "Eltern entscheiden frei", "Nur private Schulen"], a: 1, en: "Children must go to school.", tip: "Pflicht = must" },
+    { id: 35, topic: "Politik in der Demokratie", q: "Wo sitzt der Bundespräsident?", choices: ["Reichstag", "Schloss Bellevue (Berlin)", "Bundesrat", "Kanzleramt"], a: 1, en: "Schloss Bellevue, Berlin.", tip: "Bellevue = President" },
+    { id: 36, topic: "Politik in der Demokratie", q: "Was ist das Staatssymbol Deutschlands?", choices: ["Bundesadler", "Bär", "Löwe", "Eiche"], a: 0, en: "Federal Eagle.", tip: "Adler = eagle" }
+  ];
+// Append these to your data:
+const STARTER_PACK_EXTRA_37_86 = [
+  { id: 37, topic: "Politik in der Demokratie", q: "Wo hat der Deutsche Bundestag seinen Sitz?", choices: ["München", "Berlin", "Bonn", "Hamburg"], a: 1, en: "Bundestag sits in Berlin (Reichstag).", tip: "Glass dome = Reichstag in Berlin" },
+  { id: 38, topic: "Politik in der Demokratie", q: "Wie lange dauert die Wahlperiode des Bundestages in der Regel?", choices: ["3 Jahre", "4 Jahre", "5 Jahre", "6 Jahre"], a: 1, en: "Bundestag term is 4 years.", tip: "4 years = one term" },
+  { id: 39, topic: "Politik in der Demokratie", q: "Wer ist das Staatsoberhaupt der Bundesrepublik Deutschland?", choices: ["Der Bundeskanzler", "Der Bundespräsident", "Der Bundestagspräsident", "Der Präsident des Bundesrates"], a: 1, en: "Head of state = Federal President.", tip: "Präsident = repräsentiert & unterschreibt Gesetze" },
+  { id: 40, topic: "Politik in der Demokratie", q: "Wer bildet die Bundesregierung?", choices: ["Bundespräsident und Bundesversammlung", "Bundeskanzler/in und Bundesminister/innen", "Bundestag und Bundesrat", "Bundesrat und Bundespräsident"], a: 1, en: "Federal Government = Chancellor + Ministers.", tip: "Kanzler/in führt die Minister" },
+  { id: 41, topic: "Politik in der Demokratie", q: "Wer wählt die/den Bundeskanzler/in?", choices: ["Das Volk direkt", "Der Bundesrat", "Der Bundestag", "Der Bundespräsident"], a: 2, en: "Chancellor is elected by the Bundestag.", tip: "Parliament chooses the head of government" },
+  { id: 42, topic: "Politik in der Demokratie", q: "Wer unterschreibt die vom Bundestag beschlossenen Gesetze, damit sie gültig werden?", choices: ["Der Bundespräsident", "Der Bundeskanzler", "Der Bundestagspräsident", "Der Präsident des Bundesrates"], a: 0, en: "Federal President signs laws.", tip: "Unterschrift des Präsidenten = gültig" },
+  { id: 43, topic: "Politik in der Demokratie", q: "Wie heißt das Prinzip, dass die staatliche Macht aufgeteilt ist?", choices: ["Gewaltenteilung", "Bundesstaat", "Sozialstaat", "Zentralstaat"], a: 0, en: "Separation of powers.", tip: "Legislative • Exekutive • Judikative" },
+  { id: 44, topic: "Politik in der Demokratie", q: "Welche Aufgabe hat das Bundesverfassungsgericht?", choices: ["Es macht Gesetze", "Es kontrolliert die Regierung politisch", "Es prüft Gesetze am Grundgesetz", "Es wählt den Bundespräsidenten"], a: 2, en: "It reviews laws against the Basic Law.", tip: "Karlsruhe prüft: GG-konform?" },
+  { id: 45, topic: "Politik in der Demokratie", q: "Wie viele Nachbarstaaten hat Deutschland?", choices: ["7", "8", "9", "10"], a: 2, en: "Germany has 9 neighbors.", tip: "9 Länder grenzen an DE" },
+  { id: 46, topic: "Politik in der Demokratie", q: "Wer wählt das Europäische Parlament?", choices: ["Die Regierungen der EU-Staaten", "Die Bürgerinnen und Bürger der EU", "Die Europäische Kommission", "Der Europarat"], a: 1, en: "EU citizens vote for the EP.", tip: "Direktwahl alle 5 Jahre" },
+  { id: 47, topic: "Politik in der Demokratie", q: "Wo hat das Europäische Parlament seinen offiziellen Sitz?", choices: ["Brüssel", "Luxemburg", "Straßburg", "Frankfurt am Main"], a: 2, en: "Official seat in Strasbourg.", tip: "EP: Straßburg (Plenum), Brüssel (Ausschüsse)" },
+  { id: 48, topic: "Politik in der Demokratie", q: "Wo sitzt die Europäische Kommission hauptsächlich?", choices: ["Brüssel", "Straßburg", "Luxemburg", "Den Haag"], a: 0, en: "Commission is in Brussels.", tip: "Kommission = Brüssel" },
+  { id: 49, topic: "Politik in der Demokratie", q: "Wo sitzt der Gerichtshof der Europäischen Union (EuGH)?", choices: ["Luxemburg", "Brüssel", "Straßburg", "Wien"], a: 0, en: "ECJ is in Luxembourg.", tip: "Gerichtshof = Luxemburg" },
+  { id: 50, topic: "Politik in der Demokratie", q: "Wo hat die Europäische Zentralbank (EZB) ihren Sitz?", choices: ["Berlin", "Frankfurt am Main", "München", "Hamburg"], a: 1, en: "ECB is in Frankfurt/Main.", tip: "Euro = EZB Frankfurt" },
+  { id: 51, topic: "Mensch & Gesellschaft", q: "Welche Währung hat Deutschland?", choices: ["Deutsche Mark", "Euro", "Schweizer Franken", "Krone"], a: 1, en: "Germany uses the Euro.", tip: "€ (Bargeld seit 2002)" },
+  { id: 52, topic: "Politik in der Demokratie", q: "Wie lange dauert die Amtszeit des Bundespräsidenten?", choices: ["4 Jahre", "5 Jahre", "6 Jahre", "7 Jahre"], a: 1, en: "Federal President serves 5 years.", tip: "5 Jahre, max. zwei Amtszeiten" },
+  { id: 53, topic: "Politik in der Demokratie", q: "Ab welchem Alter darf man bei Bundestagswahlen wählen?", choices: ["16", "17", "18", "21"], a: 2, en: "18 for federal elections.", tip: "Bundestag: 18" },
+  { id: 54, topic: "Politik in der Demokratie", q: "Was garantiert Artikel 5 des Grundgesetzes u. a.?", choices: ["Waffenbesitz", "Meinungs- und Pressefreiheit", "Zwangsarbeit", "Schulverbot"], a: 1, en: "Freedom of opinion & press.", tip: "Art. 5 GG = Meinung & Presse" },
+  { id: 55, topic: "Politik in der Demokratie", q: "Wie nennt man das deutsche Staatsmodell mit Bund und Ländern?", choices: ["Zentralstaat", "Bundesstaat", "Einheitsstaat", "Kolonialstaat"], a: 1, en: "Germany is a federal state.", tip: "Bund + Länder = Bundesstaat" },
+  { id: 56, topic: "Politik in der Demokratie", q: "Wer ist in Deutschland für die Schulpolitik hauptsächlich zuständig?", choices: ["Der Bund", "Die Länder", "Die EU", "Die Kommunen allein"], a: 1, en: "Education is mainly a Land matter.", tip: "Bildung = Länder" },
+  { id: 57, topic: "Mensch & Gesellschaft", q: "Was bedeutet Gleichberechtigung von Mann und Frau?", choices: ["Gleiche Rechte", "Männer haben mehr Rechte", "Frauen haben mehr Pflichten", "Keine Regel"], a: 0, en: "Equal rights for men & women.", tip: "Art. 3 GG" },
+  { id: 58, topic: "Mensch & Gesellschaft", q: "Was ist am 1. Mai in Deutschland?", choices: ["Tag der Deutschen Einheit", "Tag der Arbeit", "Weihnachten", "Ostern"], a: 1, en: "1 May = Labour Day.", tip: "1. Mai = Arbeit" },
+  { id: 59, topic: "Geschichte & Verantwortung", q: "Wann wurde die Bundesrepublik Deutschland gegründet (GG in Kraft)?", choices: ["1919", "1945", "1949", "1990"], a: 2, en: "1949 (Basic Law effective).", tip: "23. Mai 1949" },
+  { id: 60, topic: "Geschichte & Verantwortung", q: "Welche Staatsform hatte die DDR wirtschaftlich?", choices: ["Planwirtschaft", "Marktwirtschaft", "Feudalismus", "Anarchie"], a: 0, en: "GDR had a planned economy.", tip: "DDR = Plan" },
+  { id: 61, topic: "Mensch & Gesellschaft", q: "Wer zahlt in die gesetzliche Sozialversicherung ein?", choices: ["Nur der Staat", "Arbeitnehmer und Arbeitgeber", "Nur Arbeitnehmer", "Nur Arbeitgeber"], a: 1, en: "Employees and employers pay.", tip: "Beide: AN + AG" },
+  { id: 62, topic: "Mensch & Gesellschaft", q: "Was ist gesetzliche Krankenversicherung?", choices: ["Freiwilliger Luxus", "Pflichtversicherung für die meisten", "Nur für Beamte", "Nur privat"], a: 1, en: "Statutory health insurance for most.", tip: "GKV = Standard" },
+  { id: 63, topic: "Politik in der Demokratie", q: "Wie heißt das Parlament eines Flächenlandes (meistens)?", choices: ["Landtag", "Abgeordnetenhaus", "Bürgerschaft", "Bundesversammlung"], a: 0, en: "State parliament is Landtag (mostly).", tip: "Berlin/Hamburg/Bremen haben andere Namen" },
+  { id: 64, topic: "Politik in der Demokratie", q: "Wer steht an der Spitze einer Landesregierung?", choices: ["Oberbürgermeister/in", "Ministerpräsident/in", "Landtagspräsident/in", "Bundesratspräsident/in"], a: 1, en: "Minister-President leads the Land.", tip: "Chef/in der Landesregierung" },
+  { id: 65, topic: "Politik in der Demokratie", q: "Was ist die Aufgabe der Polizei in Deutschland?", choices: ["Gesetze beschließen", "Recht sprechen", "Gefahren abwehren und Sicherheit sichern", "Steuern festlegen"], a: 2, en: "Police prevent danger, ensure safety.", tip: "Exekutive: Schutz & Ordnung" },
+  { id: 66, topic: "Politik in der Demokratie", q: "Wer kontrolliert die Regierung in Deutschland politisch?", choices: ["Der Bundesrat", "Das Bundesverfassungsgericht", "Der Bundestag und die Öffentlichkeit", "Der Bundespräsident"], a: 2, en: "Parliament and public control government.", tip: "Opposition, Medien, Untersuchungsausschüsse" },
+  { id: 67, topic: "Geschichte & Verantwortung", q: "Welcher Tag ist ein Gedenktag an das Ende des Zweiten Weltkriegs in Europa?", choices: ["8. Mai 1945", "3. Oktober 1990", "9. November 1989", "1. September 1939"], a: 0, en: "8 May 1945 (end in Europe).", tip: "Kapitulation in Europa" },
+  { id: 68, topic: "Geschichte & Verantwortung", q: "Welche Diktatur war 1933–1945 in Deutschland?", choices: ["Die NS-Diktatur", "Die SED-Diktatur", "Die Militärjunta", "Die Kolonialherrschaft"], a: 0, en: "Nazi dictatorship.", tip: "NS = 1933–45" },
+  { id: 69, topic: "Politik in der Demokratie", q: "Welches Organ ist direkt vom Volk gewählt?", choices: ["Bundesrat", "Bundestag", "Bundesregierung", "Bundesverfassungsgericht"], a: 1, en: "Bundestag is directly elected.", tip: "Direktwahl: Bundestag" },
+  { id: 70, topic: "Mensch & Gesellschaft", q: "Was versteht man unter Meinungsfreiheit?", choices: ["Man darf nur Positives sagen", "Man darf seine Meinung frei äußern", "Nur staatliche Medien dürfen berichten", "Man darf beleidigen ohne Grenzen"], a: 1, en: "You may state your opinion freely.", tip: "Grenzen: z. B. Beleidigung, Volksverhetzung" },
+  { id: 71, topic: "Mensch & Gesellschaft", q: "Was bedeutet Religionsfreiheit?", choices: ["Nur christliche Religion erlaubt", "Keine Religion erlaubt", "Jede Religion oder keine", "Nur zwei Religionen erlaubt"], a: 2, en: "Any religion (or none).", tip: "Glauben frei wählen" },
+  { id: 72, topic: "Mensch & Gesellschaft", q: "Was ist Kindergeld?", choices: ["Steuer", "Unterstützung des Staates für Familien", "Bußgeld", "Kredit"], a: 1, en: "State support for families.", tip: "Familienleistung" },
+  { id: 73, topic: "Politik in der Demokratie", q: "Was ist die Bundesversammlung?", choices: ["Parlament der Länder", "Wahlgremium für den Bundespräsidenten", "Regierung der EU", "Gerichtshof"], a: 1, en: "Federal Convention elects the President.", tip: "Bundestag + Ländervertreter" },
+  { id: 74, topic: "Politik in der Demokratie", q: "Wer stimmt Bundeswehreinsätze im Ausland zu?", choices: ["Der Bundespräsident", "Der Bundesrat", "Der Bundestag", "Die Bundesregierung allein"], a: 2, en: "Bundestag approves deployments.", tip: "Parlamentsarmee" },
+  { id: 75, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Bayern?", choices: ["Nürnberg", "Augsburg", "München", "Regensburg"], a: 2, en: "Bavaria’s capital is Munich.", tip: "Bayern → München" },
+  { id: 76, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Nordrhein-Westfalen?", choices: ["Köln", "Düsseldorf", "Dortmund", "Essen"], a: 1, en: "NRW capital is Düsseldorf.", tip: "Nicht Köln!" },
+  { id: 77, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Hessen?", choices: ["Frankfurt am Main", "Kassel", "Darmstadt", "Wiesbaden"], a: 3, en: "Hesse’s capital is Wiesbaden.", tip: "Nicht Frankfurt" },
+  { id: 78, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Niedersachsen?", choices: ["Oldenburg", "Osnabrück", "Braunschweig", "Hannover"], a: 3, en: "Lower Saxony’s capital is Hanover.", tip: "Niedersachsen → Hannover" },
+  { id: 79, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Sachsen?", choices: ["Leipzig", "Dresden", "Chemnitz", "Zwickau"], a: 1, en: "Saxony’s capital is Dresden.", tip: "Sachsen → Dresden" },
+  { id: 80, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Sachsen-Anhalt?", choices: ["Halle (Saale)", "Magdeburg", "Dessau-Roßlau", "Wittenberg"], a: 1, en: "Saxony-Anhalt’s capital is Magdeburg.", tip: "S-Anhalt → Magdeburg" },
+  { id: 81, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Thüringen?", choices: ["Weimar", "Jena", "Erfurt", "Gera"], a: 2, en: "Thuringia’s capital is Erfurt.", tip: "Thüringen → Erfurt" },
+  { id: 82, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Brandenburg?", choices: ["Cottbus", "Potsdam", "Frankfurt (Oder)", "Neuruppin"], a: 1, en: "Brandenburg’s capital is Potsdam.", tip: "Sanssouci in Potsdam" },
+  { id: 83, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Mecklenburg-Vorpommern?", choices: ["Rostock", "Schwerin", "Greifswald", "Neubrandenburg"], a: 1, en: "MV’s capital is Schwerin.", tip: "MV → Schwerin" },
+  { id: 84, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Rheinland-Pfalz?", choices: ["Mainz", "Koblenz", "Trier", "Ludwigshafen"], a: 0, en: "Rhineland-Palatinate: Mainz.", tip: "RLP → Mainz" },
+  { id: 85, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt des Saarlandes?", choices: ["Neunkirchen", "Saarlouis", "Saarbrücken", "Homburg"], a: 2, en: "Saarland: Saarbrücken.", tip: "Saar → Saarbrücken" },
+  { id: 86, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Schleswig-Holstein?", choices: ["Lübeck", "Flensburg", "Kiel", "Neumünster"], a: 2, en: "Schleswig-Holstein: Kiel.", tip: "SH → Kiel" }
+];
+
+const STARTER_PACK_EXTRA_87_136 = [
+  { id: 87, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Baden-Württemberg?", choices: ["Stuttgart", "Karlsruhe", "Mannheim", "Freiburg"], a: 0, en: "Baden-Württemberg: Stuttgart.", tip: "BW → Stuttgart" },
+  { id: 88, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Bayern?", choices: ["Nürnberg", "München", "Augsburg", "Regensburg"], a: 1, en: "Bavaria: Munich.", tip: "Bayern → München" },
+  { id: 89, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Nordrhein-Westfalen?", choices: ["Köln", "Düsseldorf", "Dortmund", "Essen"], a: 1, en: "NRW: Düsseldorf.", tip: "Nicht Köln" },
+  { id: 90, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Bremen?", choices: ["Bremerhaven", "Bremen", "Oldenburg", "Cuxhaven"], a: 1, en: "Bremen is both city & state capital.", tip: "Stadtstaat Bremen" },
+  { id: 91, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Hamburg?", choices: ["Hamburg", "Lübeck", "Kiel", "Flensburg"], a: 0, en: "Hamburg is its own capital.", tip: "Stadtstaat Hamburg" },
+  { id: 92, topic: "Leben in Deutschland", q: "Wie heißt die Hauptstadt von Berlin?", choices: ["Berlin", "Potsdam", "Leipzig", "Dresden"], a: 0, en: "Berlin is both city & capital.", tip: "Stadtstaat Berlin" },
+  { id: 93, topic: "Mensch & Gesellschaft", q: "Was ist Mutterschutz?", choices: ["Gesetzlicher Schutz für schwangere Arbeitnehmerinnen", "Extra Steuer", "Ferien", "Kirchliches Fest"], a: 0, en: "Legal protection for pregnant employees.", tip: "Mutterschutz = Schutz vor/nach Geburt" },
+  { id: 94, topic: "Mensch & Gesellschaft", q: "Was ist eine Kündigungsschutzklage?", choices: ["Klage gegen eine Entlassung", "Steuererklärung", "Antrag auf Kindergeld", "Einbürgerungstest"], a: 0, en: "Lawsuit against dismissal.", tip: "Kündigungsschutz = protection from being fired" },
+  { id: 95, topic: "Mensch & Gesellschaft", q: "Was bedeutet Tarifvertrag?", choices: ["Vereinbarung zwischen Arbeitgebern und Gewerkschaften", "Gesetz des Bundestags", "Gerichtsurteil", "Vertrag mit Bank"], a: 0, en: "Collective agreement between unions & employers.", tip: "Tarif = Arbeitsbedingungen" },
+  { id: 96, topic: "Mensch & Gesellschaft", q: "Was ist eine Gewerkschaft?", choices: ["Arbeitgeberverband", "Arbeitnehmervertretung", "Gericht", "Partei"], a: 1, en: "Union = employees' representation.", tip: "Gewerkschaft = Arbeitnehmer" },
+  { id: 97, topic: "Mensch & Gesellschaft", q: "Was bedeutet Religionsfreiheit?", choices: ["Nur christlich erlaubt", "Jeder oder keine Religion", "Nur staatlich", "Verboten"], a: 1, en: "Any or no religion allowed.", tip: "Religionsfreiheit = freie Wahl" },
+  { id: 98, topic: "Mensch & Gesellschaft", q: "Was bedeutet Pressefreiheit?", choices: ["Staat schreibt Artikel", "Zeitungen berichten frei", "Nur staatlich", "Nur Positives"], a: 1, en: "Press can report freely.", tip: "Kritische Berichte erlaubt" },
+  { id: 99, topic: "Mensch & Gesellschaft", q: "Was ist Jugendweihe?", choices: ["Fest in der DDR", "Kirchliche Taufe", "Schulabschluss", "Feiertag"], a: 0, en: "Youth initiation ceremony in GDR.", tip: "DDR-Tradition" },
+  { id: 100, topic: "Mensch & Gesellschaft", q: "Was ist eine christliche Konfirmation?", choices: ["Religiöses Fest für Jugendliche", "Politische Wahl", "Abiturprüfung", "Feiertag"], a: 0, en: "Christian confirmation ceremony.", tip: "Jugendliche, Kirche" },
+  { id: 101, topic: "Mensch & Gesellschaft", q: "Welche Religion hat in Deutschland die meisten Mitglieder?", choices: ["Islam", "Christentum", "Judentum", "Buddhismus"], a: 1, en: "Christianity has the most members.", tip: "Christen Mehrheit" },
+  { id: 102, topic: "Mensch & Gesellschaft", q: "In welchem Bundesland leben die meisten Menschen?", choices: ["Bayern", "Nordrhein-Westfalen", "Sachsen", "Hessen"], a: 1, en: "NRW has most inhabitants.", tip: "NRW > 17 Mio" },
+  { id: 103, topic: "Mensch & Gesellschaft", q: "Wo gibt es besonders viele Arbeitsplätze im Bereich Automobilindustrie?", choices: ["Saarland", "Baden-Württemberg", "Schleswig-Holstein", "Sachsen-Anhalt"], a: 1, en: "Baden-Württemberg = many car jobs.", tip: "Daimler, Porsche, Bosch" },
+  { id: 104, topic: "Mensch & Gesellschaft", q: "Wo ist die Ruhr-Region?", choices: ["NRW", "Bayern", "Sachsen", "Mecklenburg-Vorpommern"], a: 0, en: "Ruhrgebiet in NRW.", tip: "NRW: Ruhrgebiet = Industrie" },
+  { id: 105, topic: "Mensch & Gesellschaft", q: "Wo ist Frankfurt am Main wichtig?", choices: ["Banken/Finanzen", "Weinbau", "Tourismus", "Politik"], a: 0, en: "Frankfurt = finance hub.", tip: "EZB in Frankfurt" },
+  { id: 106, topic: "Mensch & Gesellschaft", q: "Was ist ein deutsches Volksfest?", choices: ["Karneval", "Oktoberfest", "Weihnachten", "Silvester"], a: 1, en: "Oktoberfest is a folk festival.", tip: "München Bierfest" },
+  { id: 107, topic: "Mensch & Gesellschaft", q: "Was ist Karneval?", choices: ["Religiöses Fest", "Volksfest", "Bundesfeiertag", "Politische Demo"], a: 1, en: "Carnival is a folk festival.", tip: "Köln, Düsseldorf, Mainz" },
+  { id: 108, topic: "Mensch & Gesellschaft", q: "Was bedeutet Feiertag?", choices: ["Alle arbeiten", "Gesetzlicher freier Tag", "Schule länger", "Nur für Kirche"], a: 1, en: "Public holiday = legal day off.", tip: "Gesetzlich frei" },
+  { id: 109, topic: "Mensch & Gesellschaft", q: "Welcher Tag ist in ganz Deutschland gesetzlicher Feiertag?", choices: ["1. Mai", "3. Oktober", "25. Dezember", "Alle"], a: 3, en: "All are nationwide holidays.", tip: "1.5 Arbeit • 3.10 Einheit • 25.12 Weihnachten" },
+  { id: 110, topic: "Mensch & Gesellschaft", q: "Wo ist das Oktoberfest?", choices: ["Berlin", "München", "Köln", "Hamburg"], a: 1, en: "Oktoberfest is in Munich.", tip: "München" },
+  { id: 111, topic: "Mensch & Gesellschaft", q: "Was bedeutet Ehrenamt?", choices: ["Bezahlte Arbeit", "Freiwillige Arbeit ohne Bezahlung", "Arbeit im Ausland", "Arbeit für Parteien"], a: 1, en: "Voluntary work without pay.", tip: "Ehrenamt = freiwillig" }
+];
+const STARTER_PACK_EXTRA_137_186 = [
+  { id: 137, topic: "Geschichte & Verantwortung", q: "Wann wurde Willy Brandt Bundeskanzler?", choices: ["1969", "1974", "1982", "1990"], a: 0, en: "1969–1974 Chancellor.", tip: "Brandt: Ostpolitik" },
+  { id: 138, topic: "Geschichte & Verantwortung", q: "Wann wurde Gerhard Schröder Bundeskanzler?", choices: ["1982", "1990", "1998", "2005"], a: 2, en: "1998–2005 Chancellor.", tip: "Schröder: Agenda 2010" },
+  { id: 139, topic: "Geschichte & Verantwortung", q: "Wann wurde Konrad Adenauer Bundeskanzler?", choices: ["1949", "1955", "1961", "1969"], a: 0, en: "1949–1963 Chancellor.", tip: "Erster Kanzler BRD" },
+  { id: 140, topic: "Geschichte & Verantwortung", q: "Welcher Kanzler erhielt den Friedensnobelpreis?", choices: ["Adenauer", "Brandt", "Schmidt", "Kohl"], a: 1, en: "Willy Brandt (1971).", tip: "Nobelpreis: Ostpolitik" },
+  { id: 141, topic: "Geschichte & Verantwortung", q: "Welcher Bundespräsident sprach 1985 in Bitburg zur Versöhnung?", choices: ["Weizsäcker", "Heinemann", "Lübke", "Carstens"], a: 0, en: "Richard von Weizsäcker.", tip: "Rede zum 8. Mai 1985" },
+  { id: 142, topic: "Geschichte & Verantwortung", q: "Wann trat Deutschland der EU bei?", choices: ["1957", "1973", "1990", "2004"], a: 0, en: "1957 (founding member).", tip: "EG-Gründerstaat" },
+  { id: 143, topic: "Geschichte & Verantwortung", q: "Welcher Vertrag regelte die deutsch-französische Freundschaft?", choices: ["Élysée-Vertrag", "Maastricht-Vertrag", "Schengen-Abkommen", "Lissabon-Vertrag"], a: 0, en: "Élysée Treaty 1963.", tip: "DE-FR Freundschaft" },
+  { id: 144, topic: "Geschichte & Verantwortung", q: "Welche Länder waren 1990 an der Wiedervereinigung beteiligt?", choices: ["BRD, DDR, 4 Siegermächte", "Nur BRD und DDR", "EU", "NATO"], a: 0, en: "BRD + DDR + 4 Allies.", tip: "2+4-Vertrag" },
+  { id: 145, topic: "Geschichte & Verantwortung", q: "Welche Siegermächte des Zweiten Weltkriegs hatten Besatzungszonen in Deutschland?", choices: ["USA, GB, FR, UdSSR", "USA, China, GB, FR", "USA, Italien, GB, Polen", "USA, FR, Spanien, Russland"], a: 0, en: "US, UK, FR, USSR.", tip: "Vier Zonen" },
+  { id: 146, topic: "Geschichte & Verantwortung", q: "Wie hieß die deutsche Währung bis 2002?", choices: ["Euro", "D-Mark", "Reichsmark", "Schilling"], a: 1, en: "D-Mark until 2002.", tip: "DM vor €" },
+  { id: 147, topic: "Geschichte & Verantwortung", q: "Wann wurde die Weimarer Republik gegründet?", choices: ["1918", "1919", "1933", "1945"], a: 1, en: "1919 Weimar Constitution.", tip: "Nach WWI" },
+  { id: 148, topic: "Geschichte & Verantwortung", q: "Wann wurde die Weimarer Republik beendet?", choices: ["1933", "1945", "1919", "1929"], a: 0, en: "1933 (Hitler).", tip: "Machtübernahme NSDAP" },
+  { id: 149, topic: "Geschichte & Verantwortung", q: "Welches Ereignis war am 9. November 1938?", choices: ["Reichspogromnacht", "Ende WWI", "Wiedervereinigung", "Mauerfall"], a: 0, en: "Kristallnacht pogrom.", tip: "9.11.1938" },
+  { id: 150, topic: "Geschichte & Verantwortung", q: "Was passierte 1918 in Deutschland?", choices: ["Ende des Ersten Weltkriegs & Kaiser Abdankung", "Beginn WWII", "Mauerbau", "Wiedervereinigung"], a: 0, en: "End of WWI, Kaiser abdicated.", tip: "1918 Novemberrevolution" },
+  { id: 151, topic: "Geschichte & Verantwortung", q: "Wann war die Novemberrevolution?", choices: ["1918", "1933", "1945", "1990"], a: 0, en: "1918 revolution.", tip: "Ende Kaiserreich" },
+  { id: 152, topic: "Geschichte & Verantwortung", q: "Wer war Karl Marx?", choices: ["Philosoph/Ökonom", "Bundeskanzler", "Präsident", "General"], a: 0, en: "Philosopher/economist, wrote Das Kapital.", tip: "Idee: Kommunismus" },
+  { id: 153, topic: "Geschichte & Verantwortung", q: "Wer war Adenauer?", choices: ["Erster Bundeskanzler BRD", "DDR-Präsident", "Bundespräsident", "Kaiser"], a: 0, en: "First Chancellor of FRG.", tip: "1949–63 Kanzler" },
+  { id: 154, topic: "Geschichte & Verantwortung", q: "Wer war Erich Honecker?", choices: ["DDR-Staatsratsvorsitzender", "Bundeskanzler", "Bundespräsident", "Kaiser"], a: 0, en: "Head of GDR (SED).", tip: "DDR-Chef bis 1989" },
+  { id: 155, topic: "Geschichte & Verantwortung", q: "Wer war Ludwig Erhard?", choices: ["Bundeskanzler (Wirtschaftswunder)", "Bundespräsident", "DDR-Chef", "Kaiser"], a: 0, en: "Chancellor, father of economic miracle.", tip: "CDU, 1963–66" },
+  { id: 156, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Schmidt?", choices: ["Bundeskanzler 1974–82", "Bundespräsident", "DDR-Chef", "General"], a: 0, en: "Chancellor 1974–82.", tip: "SPD, Krisenmanager" },
+  { id: 157, topic: "Geschichte & Verantwortung", q: "Wer war Joschka Fischer?", choices: ["Außenminister/Grüne", "Bundeskanzler", "Präsident", "DDR-Chef"], a: 0, en: "Foreign Minister (Green).", tip: "Grüner Außenminister" },
+  { id: 158, topic: "Geschichte & Verantwortung", q: "Wer war Otto von Bismarck?", choices: ["Reichskanzler, Gründer Deutsches Reich", "Bundespräsident", "DDR-Chef", "Philosoph"], a: 0, en: "Iron Chancellor, 1871 Reich.", tip: "Reichsgründung" },
+  { id: 159, topic: "Geschichte & Verantwortung", q: "Wer war Angela Merkel?", choices: ["Bundeskanzlerin 2005–21", "Bundespräsidentin", "DDR-Chef", "Richterin"], a: 0, en: "Chancellor 2005–2021.", tip: "Physikerin, CDU" },
+  { id: 160, topic: "Geschichte & Verantwortung", q: "Wer war Walter Ulbricht?", choices: ["DDR-Staatschef bis 1971", "Bundeskanzler", "Bundespräsident", "Kaiser"], a: 0, en: "GDR head until 1971.", tip: "SED" },
+  { id: 161, topic: "Geschichte & Verantwortung", q: "Wer war Thomas Mann?", choices: ["Schriftsteller, Nobelpreisträger", "Kanzler", "Präsident", "General"], a: 0, en: "Writer, Nobel prize.", tip: "Buddenbrooks, Exil" },
+  { id: 162, topic: "Geschichte & Verantwortung", q: "Wer war Sophie Scholl?", choices: ["Widerstandskämpferin gegen NS", "Kanzlerin", "DDR-Politikerin", "Prinzessin"], a: 0, en: "Resistance against Nazis.", tip: "Weiße Rose" },
+  { id: 163, topic: "Geschichte & Verantwortung", q: "Wer war Albert Einstein?", choices: ["Physiker", "Bundespräsident", "DDR-Chef", "General"], a: 0, en: "Physicist, Nobel prize.", tip: "Relativitätstheorie" },
+  { id: 164, topic: "Geschichte & Verantwortung", q: "Wer war Johann Wolfgang von Goethe?", choices: ["Dichter", "Kanzler", "Präsident", "Soldat"], a: 0, en: "Poet, writer.", tip: "Faust" },
+  { id: 165, topic: "Geschichte & Verantwortung", q: "Wer war Ludwig van Beethoven?", choices: ["Komponist", "Präsident", "General", "Kanzler"], a: 0, en: "Composer.", tip: "9. Symphonie" },
+  { id: 166, topic: "Geschichte & Verantwortung", q: "Wer war Johann Sebastian Bach?", choices: ["Komponist", "Kanzler", "Präsident", "Soldat"], a: 0, en: "Composer.", tip: "Barockmusik" },
+  { id: 167, topic: "Geschichte & Verantwortung", q: "Wer war Albert Schweitzer?", choices: ["Arzt, Theologe, Nobelpreis", "Kanzler", "Präsident", "General"], a: 0, en: "Doctor, theologian.", tip: "Ehrfurcht vor dem Leben" },
+  { id: 168, topic: "Geschichte & Verantwortung", q: "Wer war Martin Luther?", choices: ["Reformator", "Kanzler", "Präsident", "General"], a: 0, en: "Reformer, 95 Thesen.", tip: "Reformation" },
+  { id: 169, topic: "Geschichte & Verantwortung", q: "Wer war Karl der Große?", choices: ["Kaiser 800", "Bundeskanzler", "Präsident", "General"], a: 0, en: "Charlemagne, crowned 800.", tip: "Erstes Reich" },
+  { id: 170, topic: "Geschichte & Verantwortung", q: "Wer war Konrad Zuse?", choices: ["Computerpionier", "Kanzler", "Präsident", "General"], a: 0, en: "Computer pioneer.", tip: "Z3-Rechner" },
+  { id: 171, topic: "Geschichte & Verantwortung", q: "Wer war Bertolt Brecht?", choices: ["Dramatiker", "Kanzler", "Präsident", "General"], a: 0, en: "Playwright.", tip: "Dreigroschenoper" },
+  { id: 172, topic: "Geschichte & Verantwortung", q: "Wer war Immanuel Kant?", choices: ["Philosoph", "Kanzler", "Präsident", "General"], a: 0, en: "Philosopher.", tip: "Kritik der reinen Vernunft" },
+  { id: 173, topic: "Geschichte & Verantwortung", q: "Wer war Friedrich Schiller?", choices: ["Dichter", "Kanzler", "Präsident", "General"], a: 0, en: "Poet, playwright.", tip: "Ode an die Freude" },
+  { id: 174, topic: "Geschichte & Verantwortung", q: "Wer war Wolfgang Amadeus Mozart?", choices: ["Komponist", "Kanzler", "Präsident", "General"], a: 0, en: "Composer.", tip: "Wien Klassik" },
+  { id: 175, topic: "Geschichte & Verantwortung", q: "Wer war Thomas Gottschalk?", choices: ["Moderator", "Kanzler", "Präsident", "General"], a: 0, en: "TV host.", tip: "Wetten, dass..?" },
+  { id: 176, topic: "Geschichte & Verantwortung", q: "Wer war Steffi Graf?", choices: ["Tennisspielerin", "Kanzlerin", "Präsidentin", "Schauspielerin"], a: 0, en: "Tennis player.", tip: "Grand Slam" },
+  { id: 177, topic: "Geschichte & Verantwortung", q: "Wer war Boris Becker?", choices: ["Tennisspieler", "Kanzler", "Präsident", "Schauspieler"], a: 0, en: "Tennis player.", tip: "Wimbledon-Sieger" },
+  { id: 178, topic: "Geschichte & Verantwortung", q: "Wer war Marlene Dietrich?", choices: ["Schauspielerin, Sängerin", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Actress, singer.", tip: "Hollywoodstar" },
+  { id: 179, topic: "Geschichte & Verantwortung", q: "Wer war Heidi Klum?", choices: ["Model", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Model, TV star.", tip: "Germany’s Next Topmodel" },
+  { id: 180, topic: "Geschichte & Verantwortung", q: "Wer war Albert Ballin?", choices: ["Reeder, HAPAG", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Shipowner, HAPAG.", tip: "Hamburger Reeder" },
+  { id: 181, topic: "Geschichte & Verantwortung", q: "Wer war Käthe Kollwitz?", choices: ["Künstlerin", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Artist.", tip: "Grafiken, Sozialkritik" },
+  { id: 182, topic: "Geschichte & Verantwortung", q: "Wer war Max Planck?", choices: ["Physiker", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Physicist.", tip: "Quantenphysik" },
+  { id: 183, topic: "Geschichte & Verantwortung", q: "Wer war Robert Koch?", choices: ["Mediziner, Nobelpreis", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Doctor, Nobel Prize.", tip: "Bakteriologie" },
+  { id: 184, topic: "Geschichte & Verantwortung", q: "Wer war Alexander von Humboldt?", choices: ["Naturforscher", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Explorer, scientist.", tip: "Forschungsreisen" },
+  { id: 185, topic: "Geschichte & Verantwortung", q: "Wer war Nena?", choices: ["Sängerin", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Singer (99 Luftballons).", tip: "80er Jahre" },
+  { id: 186, topic: "Geschichte & Verantwortung", q: "Wer war Johann Gottfried Herder?", choices: ["Philosoph, Dichter", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Philosopher, poet.", tip: "Weimarer Klassik" }
+];
+const STARTER_PACK_EXTRA_187_236 = [
+  { id: 187, topic: "Geschichte & Verantwortung", q: "Wer war Hans und Sophie Scholl?", choices: ["Widerstand gegen NS", "Bundeskanzler", "Präsidenten", "Sportler"], a: 0, en: "Resistance fighters against Nazis.", tip: "Weiße Rose" },
+  { id: 188, topic: "Geschichte & Verantwortung", q: "Wer war Anne Frank?", choices: ["Jüdisches Mädchen, Tagebuch", "Bundeskanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Jewish girl, wrote diary.", tip: "Tagebuch im Versteck" },
+  { id: 189, topic: "Geschichte & Verantwortung", q: "Wer war Johannes Gutenberg?", choices: ["Erfinder des Buchdrucks", "Bundeskanzler", "Präsident", "Sportler"], a: 0, en: "Invented the printing press.", tip: "Mainz, 1450" },
+  { id: 190, topic: "Geschichte & Verantwortung", q: "Wer war Albrecht Dürer?", choices: ["Maler", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Painter, engraver.", tip: "Nürnberg Künstler" },
+  { id: 191, topic: "Geschichte & Verantwortung", q: "Wer war Richard Wagner?", choices: ["Komponist", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Composer (operas).", tip: "Bayreuth" },
+  { id: 192, topic: "Geschichte & Verantwortung", q: "Wer war Johann Gottlieb Fichte?", choices: ["Philosoph", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Philosopher.", tip: "Idealismus" },
+  { id: 193, topic: "Geschichte & Verantwortung", q: "Wer war Clara Schumann?", choices: ["Pianistin, Komponistin", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Pianist, composer.", tip: "19. Jhdt" },
+  { id: 194, topic: "Geschichte & Verantwortung", q: "Wer war Käthe Kollwitz?", choices: ["Künstlerin", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Artist, graphic works.", tip: "Sozialkritik" },
+  { id: 195, topic: "Geschichte & Verantwortung", q: "Wer war Rainer Maria Rilke?", choices: ["Dichter", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Poet.", tip: "Lyrik" },
+  { id: 196, topic: "Geschichte & Verantwortung", q: "Wer war Heinrich Heine?", choices: ["Dichter", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Poet.", tip: "Loreley" },
+  { id: 197, topic: "Geschichte & Verantwortung", q: "Wer war Hermann Hesse?", choices: ["Schriftsteller, Nobelpreis", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Author, Nobel prize.", tip: "Siddhartha" },
+  { id: 198, topic: "Geschichte & Verantwortung", q: "Wer war Günter Grass?", choices: ["Schriftsteller, Nobelpreis", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Author, Nobel prize.", tip: "Die Blechtrommel" },
+  { id: 199, topic: "Geschichte & Verantwortung", q: "Wer war Thomas Mann?", choices: ["Schriftsteller, Nobelpreis", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Author, Nobel prize.", tip: "Buddenbrooks" },
+  { id: 200, topic: "Geschichte & Verantwortung", q: "Wer war Wolfgang Schäuble?", choices: ["Politiker CDU", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Politician CDU.", tip: "Langjähriger Finanzminister" },
+  { id: 201, topic: "Geschichte & Verantwortung", q: "Wer war Franz Beckenbauer?", choices: ["Fußballer", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Footballer.", tip: "Der Kaiser" },
+  { id: 202, topic: "Geschichte & Verantwortung", q: "Wer war Michael Schumacher?", choices: ["Formel-1-Rennfahrer", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Formula 1 driver.", tip: "7x Weltmeister" },
+  { id: 203, topic: "Geschichte & Verantwortung", q: "Wer war Dirk Nowitzki?", choices: ["Basketballspieler", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Basketball player.", tip: "NBA Star" },
+  { id: 204, topic: "Geschichte & Verantwortung", q: "Wer war Angela Merkel?", choices: ["Bundeskanzlerin", "Präsidentin", "Sportlerin", "Schauspielerin"], a: 0, en: "Chancellor 2005–2021.", tip: "CDU Physikerin" },
+  { id: 205, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Kohl?", choices: ["Bundeskanzler", "Präsident", "Sportler", "General"], a: 0, en: "Chancellor 1982–1998.", tip: "Kanzler der Einheit" },
+  { id: 206, topic: "Geschichte & Verantwortung", q: "Wer war Ludwig van Beethoven?", choices: ["Komponist", "Kanzler", "Präsident", "General"], a: 0, en: "Composer.", tip: "9. Symphonie" },
+  { id: 207, topic: "Geschichte & Verantwortung", q: "Wer war Wolfgang Amadeus Mozart?", choices: ["Komponist", "Kanzler", "Präsident", "General"], a: 0, en: "Composer.", tip: "Klassik Wien" },
+  { id: 208, topic: "Geschichte & Verantwortung", q: "Wer war Johann Sebastian Bach?", choices: ["Komponist", "Kanzler", "Präsident", "General"], a: 0, en: "Composer.", tip: "Barock" },
+  { id: 209, topic: "Geschichte & Verantwortung", q: "Wer war Albert Einstein?", choices: ["Physiker", "Kanzler", "Präsident", "General"], a: 0, en: "Physicist.", tip: "Relativitätstheorie" },
+  { id: 210, topic: "Geschichte & Verantwortung", q: "Wer war Max Planck?", choices: ["Physiker", "Kanzler", "Präsident", "General"], a: 0, en: "Physicist.", tip: "Quantenphysik" },
+  { id: 211, topic: "Geschichte & Verantwortung", q: "Wer war Robert Koch?", choices: ["Mediziner", "Kanzler", "Präsident", "General"], a: 0, en: "Doctor.", tip: "Bakteriologie" },
+  { id: 212, topic: "Geschichte & Verantwortung", q: "Wer war Alexander von Humboldt?", choices: ["Naturforscher", "Kanzler", "Präsident", "General"], a: 0, en: "Explorer, scientist.", tip: "Forschungsreisen" },
+  { id: 213, topic: "Geschichte & Verantwortung", q: "Wer war Immanuel Kant?", choices: ["Philosoph", "Kanzler", "Präsident", "General"], a: 0, en: "Philosopher.", tip: "Kritik der reinen Vernunft" },
+  { id: 214, topic: "Geschichte & Verantwortung", q: "Wer war Friedrich Schiller?", choices: ["Dichter", "Kanzler", "Präsident", "General"], a: 0, en: "Poet.", tip: "Ode an die Freude" },
+  { id: 215, topic: "Geschichte & Verantwortung", q: "Wer war Johann Wolfgang von Goethe?", choices: ["Dichter", "Kanzler", "Präsident", "General"], a: 0, en: "Poet, writer.", tip: "Faust" },
+  { id: 216, topic: "Geschichte & Verantwortung", q: "Wer war Bertolt Brecht?", choices: ["Dramatiker", "Kanzler", "Präsident", "General"], a: 0, en: "Playwright.", tip: "Dreigroschenoper" },
+  { id: 217, topic: "Geschichte & Verantwortung", q: "Wer war Thomas Mann?", choices: ["Schriftsteller", "Kanzler", "Präsident", "General"], a: 0, en: "Author.", tip: "Buddenbrooks" },
+  { id: 218, topic: "Geschichte & Verantwortung", q: "Wer war Günter Grass?", choices: ["Schriftsteller", "Kanzler", "Präsident", "General"], a: 0, en: "Author.", tip: "Blechtrommel" },
+  { id: 219, topic: "Geschichte & Verantwortung", q: "Wer war Hermann Hesse?", choices: ["Schriftsteller", "Kanzler", "Präsident", "General"], a: 0, en: "Author.", tip: "Siddhartha" },
+  { id: 220, topic: "Geschichte & Verantwortung", q: "Wer war Heinrich Heine?", choices: ["Dichter", "Kanzler", "Präsident", "General"], a: 0, en: "Poet.", tip: "Loreley" },
+  { id: 221, topic: "Geschichte & Verantwortung", q: "Wer war Rainer Maria Rilke?", choices: ["Dichter", "Kanzler", "Präsident", "General"], a: 0, en: "Poet.", tip: "Lyrik" },
+  { id: 222, topic: "Geschichte & Verantwortung", q: "Wer war Karl Marx?", choices: ["Philosoph, Ökonom", "Kanzler", "Präsident", "General"], a: 0, en: "Philosopher, economist.", tip: "Kommunistisches Manifest" },
+  { id: 223, topic: "Geschichte & Verantwortung", q: "Wer war Otto von Bismarck?", choices: ["Reichskanzler", "Kanzler BRD", "Präsident", "General"], a: 0, en: "Iron Chancellor.", tip: "Reichsgründung 1871" },
+  { id: 224, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Schmidt?", choices: ["Bundeskanzler 1974–82", "Präsident", "DDR-Chef", "General"], a: 0, en: "Chancellor 1974–82.", tip: "SPD" },
+  { id: 225, topic: "Geschichte & Verantwortung", q: "Wer war Willy Brandt?", choices: ["Bundeskanzler 1969–74", "Präsident", "DDR-Chef", "General"], a: 0, en: "Chancellor 1969–74.", tip: "Ostpolitik" },
+  { id: 226, topic: "Geschichte & Verantwortung", q: "Wer war Konrad Adenauer?", choices: ["Erster Kanzler BRD", "Präsident", "DDR-Chef", "General"], a: 0, en: "First FRG Chancellor.", tip: "1949" },
+  { id: 227, topic: "Geschichte & Verantwortung", q: "Wer war Ludwig Erhard?", choices: ["Kanzler, Wirtschaftswunder", "Präsident", "DDR-Chef", "General"], a: 0, en: "Chancellor, economic miracle.", tip: "1963" },
+  { id: 228, topic: "Geschichte & Verantwortung", q: "Wer war Erich Honecker?", choices: ["DDR-Chef", "Kanzler", "Präsident", "General"], a: 0, en: "Head of GDR.", tip: "SED" },
+  { id: 229, topic: "Geschichte & Verantwortung", q: "Wer war Walter Ulbricht?", choices: ["DDR-Chef", "Kanzler", "Präsident", "General"], a: 0, en: "GDR head.", tip: "Mauerbau" },
+  { id: 230, topic: "Geschichte & Verantwortung", q: "Wer war Angela Merkel?", choices: ["Kanzlerin 2005–21", "Präsidentin", "Sportlerin", "Autorin"], a: 0, en: "Chancellor 2005–2021.", tip: "CDU" },
+  { id: 231, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Kohl?", choices: ["Kanzler 1982–98", "Präsident", "Sportler", "Autor"], a: 0, en: "Chancellor 1982–1998.", tip: "Einheit" },
+  { id: 232, topic: "Geschichte & Verantwortung", q: "Wer war Gerhard Schröder?", choices: ["Kanzler 1998–2005", "Präsident", "Sportler", "Autor"], a: 0, en: "Chancellor 1998–2005.", tip: "Agenda 2010" },
+  { id: 233, topic: "Geschichte & Verantwortung", q: "Wer war Olaf Scholz?", choices: ["Kanzler seit 2021", "Präsident", "Sportler", "Autor"], a: 0, en: "Chancellor since 2021.", tip: "SPD" },
+  { id: 234, topic: "Geschichte & Verantwortung", q: "Wer war Frank-Walter Steinmeier?", choices: ["Bundespräsident seit 2017", "Kanzler", "Sportler", "Autor"], a: 0, en: "President since 2017.", tip: "SPD" },
+  { id: 235, topic: "Geschichte & Verantwortung", q: "Wer war Joachim Gauck?", choices: ["Bundespräsident 2012–17", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 2012–2017.", tip: "Pfarrer, DDR" },
+  { id: 236, topic: "Geschichte & Verantwortung", q: "Wer war Christian Wulff?", choices: ["Bundespräsident 2010–12", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 2010–2012.", tip: "CDU" }
+];
+const STARTER_PACK_EXTRA_237_286 = [
+  { id: 237, topic: "Geschichte & Verantwortung", q: "Wer war Horst Köhler?", choices: ["Bundespräsident 2004–2010", "Bundeskanzler", "Sportler", "Autor"], a: 0, en: "President 2004–2010.", tip: "CDU" },
+  { id: 238, topic: "Geschichte & Verantwortung", q: "Wer war Johannes Rau?", choices: ["Bundespräsident 1999–2004", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1999–2004.", tip: "SPD" },
+  { id: 239, topic: "Geschichte & Verantwortung", q: "Wer war Roman Herzog?", choices: ["Bundespräsident 1994–1999", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1994–1999.", tip: "CDU, Richter" },
+  { id: 240, topic: "Geschichte & Verantwortung", q: "Wer war Richard von Weizsäcker?", choices: ["Bundespräsident 1984–1994", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1984–1994.", tip: "Rede 8. Mai 1985" },
+  { id: 241, topic: "Geschichte & Verantwortung", q: "Wer war Karl Carstens?", choices: ["Bundespräsident 1979–1984", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1979–1984.", tip: "CDU" },
+  { id: 242, topic: "Geschichte & Verantwortung", q: "Wer war Walter Scheel?", choices: ["Bundespräsident 1974–1979", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1974–1979.", tip: "FDP" },
+  { id: 243, topic: "Geschichte & Verantwortung", q: "Wer war Gustav Heinemann?", choices: ["Bundespräsident 1969–1974", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1969–1974.", tip: "SPD" },
+  { id: 244, topic: "Geschichte & Verantwortung", q: "Wer war Heinrich Lübke?", choices: ["Bundespräsident 1959–1969", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1959–1969.", tip: "CDU" },
+  { id: 245, topic: "Geschichte & Verantwortung", q: "Wer war Theodor Heuss?", choices: ["Erster Bundespräsident 1949–1959", "Kanzler", "Sportler", "Autor"], a: 0, en: "First President 1949–1959.", tip: "FDP" },
+  { id: 246, topic: "Geschichte & Verantwortung", q: "Wer war Friedrich Ebert?", choices: ["Erster Reichspräsident Weimarer Republik", "Kanzler", "Sportler", "Autor"], a: 0, en: "First Weimar President.", tip: "SPD" },
+  { id: 247, topic: "Geschichte & Verantwortung", q: "Wer war Paul von Hindenburg?", choices: ["Reichspräsident 1925–1934", "Kanzler", "Sportler", "Autor"], a: 0, en: "President 1925–1934.", tip: "Hitler ernannt" },
+  { id: 248, topic: "Geschichte & Verantwortung", q: "Wer war Adolf Hitler?", choices: ["Diktator 1933–1945", "Präsident", "Kanzler", "General"], a: 0, en: "Dictator 1933–1945.", tip: "NSDAP" },
+  { id: 249, topic: "Geschichte & Verantwortung", q: "Wer war Joseph Goebbels?", choices: ["Propagandaminister NS", "Kanzler", "Präsident", "General"], a: 0, en: "Propaganda minister.", tip: "NS-Propaganda" },
+  { id: 250, topic: "Geschichte & Verantwortung", q: "Wer war Hermann Göring?", choices: ["NS-Führer, Luftwaffe", "Kanzler", "Präsident", "General"], a: 0, en: "Nazi leader, Luftwaffe.", tip: "NSDAP" },
+  { id: 251, topic: "Geschichte & Verantwortung", q: "Wer war Heinrich Himmler?", choices: ["NS-Führer, SS", "Kanzler", "Präsident", "General"], a: 0, en: "Nazi leader, SS.", tip: "SS-Chef" },
+  { id: 252, topic: "Geschichte & Verantwortung", q: "Wer war Anne Frank?", choices: ["Jüdisches Mädchen, Tagebuch", "Kanzlerin", "Präsidentin", "Sportlerin"], a: 0, en: "Jewish girl, diary.", tip: "Versteck, Tagebuch" },
+  { id: 253, topic: "Geschichte & Verantwortung", q: "Wer war Oskar Schindler?", choices: ["Unternehmer, rettete Juden", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Saved Jews in WWII.", tip: "Schindlers Liste" },
+  { id: 254, topic: "Geschichte & Verantwortung", q: "Wer war Claus Schenk Graf von Stauffenberg?", choices: ["Widerstand NS, Attentat 1944", "Kanzler", "Präsident", "Sportler"], a: 0, en: "Resistance, 20 July 1944.", tip: "Attentat Hitler" },
+  { id: 255, topic: "Geschichte & Verantwortung", q: "Wer war Konrad Adenauer?", choices: ["Erster Kanzler BRD", "Präsident", "General", "Sportler"], a: 0, en: "First FRG Chancellor.", tip: "1949–1963" },
+  { id: 256, topic: "Geschichte & Verantwortung", q: "Wer war Ludwig Erhard?", choices: ["Kanzler, Wirtschaftswunder", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor, economic miracle.", tip: "CDU" },
+  { id: 257, topic: "Geschichte & Verantwortung", q: "Wer war Kurt Georg Kiesinger?", choices: ["Bundeskanzler 1966–69", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor 1966–1969.", tip: "GroKo" },
+  { id: 258, topic: "Geschichte & Verantwortung", q: "Wer war Willy Brandt?", choices: ["Bundeskanzler 1969–74", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor 1969–1974.", tip: "SPD" },
+  { id: 259, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Schmidt?", choices: ["Bundeskanzler 1974–82", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor 1974–1982.", tip: "SPD" },
+  { id: 260, topic: "Geschichte & Verantwortung", q: "Wer war Helmut Kohl?", choices: ["Bundeskanzler 1982–98", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor 1982–1998.", tip: "CDU, Einheit" },
+  { id: 261, topic: "Geschichte & Verantwortung", q: "Wer war Gerhard Schröder?", choices: ["Bundeskanzler 1998–2005", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor 1998–2005.", tip: "Agenda 2010" },
+  { id: 262, topic: "Geschichte & Verantwortung", q: "Wer war Angela Merkel?", choices: ["Bundeskanzlerin 2005–21", "Präsidentin", "Generalin", "Sportlerin"], a: 0, en: "Chancellor 2005–2021.", tip: "CDU" },
+  { id: 263, topic: "Geschichte & Verantwortung", q: "Wer war Olaf Scholz?", choices: ["Bundeskanzler seit 2021", "Präsident", "General", "Sportler"], a: 0, en: "Chancellor since 2021.", tip: "SPD" },
+  { id: 264, topic: "Mensch & Gesellschaft", q: "Was bedeutet Sozialstaat?", choices: ["Staat hilft Bürgern in Not", "Staat macht Gesetze", "Staat erhebt keine Steuern", "Staat verbietet Parteien"], a: 0, en: "Welfare state supports citizens.", tip: "Sozial = Hilfe" },
+  { id: 265, topic: "Mensch & Gesellschaft", q: "Was bedeutet Rechtsstaat?", choices: ["Alle müssen Gesetze befolgen", "Nur Regierung folgt Gesetzen", "Polizei macht Gesetze", "Richter sind Politiker"], a: 0, en: "Rule of law: all must obey laws.", tip: "Recht = law" },
+  { id: 266, topic: "Mensch & Gesellschaft", q: "Was bedeutet Gewaltenteilung?", choices: ["Macht verteilt: Legislative, Exekutive, Judikative", "Polizei entscheidet allein", "Nur Regierung entscheidet", "Keine Gesetze nötig"], a: 0, en: "Separation of powers.", tip: "3 Gewalten" },
+  { id: 267, topic: "Mensch & Gesellschaft", q: "Was ist eine Demokratie?", choices: ["Herrschaft des Volkes", "Herrschaft eines Königs", "Herrschaft der Kirche", "Herrschaft der Armee"], a: 0, en: "Rule of the people.", tip: "Demos = Volk" },
+  { id: 268, topic: "Mensch & Gesellschaft", q: "Was ist eine Diktatur?", choices: ["Herrschaft einer Person/Gruppe ohne freie Wahlen", "Volk wählt frei", "Gerichte entscheiden alles", "Parlament entscheidet"], a: 0, en: "Dictatorship = no free elections.", tip: "NS, DDR" },
+  { id: 269, topic: "Mensch & Gesellschaft", q: "Was bedeutet Meinungsfreiheit?", choices: ["Meinung frei äußern", "Nur Positives sagen", "Nur staatlich erlaubt", "Verbot"], a: 0, en: "Freedom of opinion.", tip: "Art. 5 GG" },
+  { id: 270, topic: "Mensch & Gesellschaft", q: "Was bedeutet Pressefreiheit?", choices: ["Zeitungen berichten frei", "Nur staatlich", "Nur Positives", "Keine Presse"], a: 0, en: "Freedom of the press.", tip: "Art. 5 GG" },
+  { id: 271, topic: "Mensch & Gesellschaft", q: "Was bedeutet Religionsfreiheit?", choices: ["Jede oder keine Religion erlaubt", "Nur Christentum", "Nur staatlich", "Verbot"], a: 0, en: "Religious freedom.", tip: "Art. 4 GG" },
+  { id: 272, topic: "Mensch & Gesellschaft", q: "Was bedeutet Gleichberechtigung?", choices: ["Männer und Frauen gleich", "Männer mehr Rechte", "Frauen mehr Rechte", "Keine Regel"], a: 0, en: "Equality men & women.", tip: "Art. 3 GG" },
+  { id: 273, topic: "Mensch & Gesellschaft", q: "Was ist Schulpflicht?", choices: ["Kinder müssen Schule besuchen", "Kinder dürfen nicht", "Nur privat", "Nur staatlich"], a: 0, en: "School attendance compulsory.", tip: "Pflicht = muss" },
+  { id: 274, topic: "Mensch & Gesellschaft", q: "Was ist Kindergeld?", choices: ["Staatliche Unterstützung für Familien", "Steuer", "Bußgeld", "Kredit"], a: 0, en: "State support for families.", tip: "Familienleistung" },
+  { id: 275, topic: "Mensch & Gesellschaft", q: "Was ist Arbeitslosengeld?", choices: ["Leistung für Arbeitslose", "Steuer", "Kredit", "Bußgeld"], a: 0, en: "Unemployment benefit.", tip: "ALG I/II" },
+  { id: 276, topic: "Mensch & Gesellschaft", q: "Was ist Rentenversicherung?", choices: ["Absicherung im Alter", "Steuer", "Kredit", "Geschenk"], a: 0, en: "Pension insurance.", tip: "Rente im Alter" },
+  { id: 277, topic: "Mensch & Gesellschaft", q: "Was ist Krankenversicherung?", choices: ["Absicherung bei Krankheit", "Steuer", "Kredit", "Geschenk"], a: 0, en: "Health insurance.", tip: "GKV/PKV" },
+  { id: 278, topic: "Mensch & Gesellschaft", q: "Was ist Pflegeversicherung?", choices: ["Absicherung bei Pflegebedürftigkeit", "Steuer", "Kredit", "Geschenk"], a: 0, en: "Nursing care insurance.", tip: "Pflegekosten" },
+  { id: 279, topic: "Mensch & Gesellschaft", q: "Was ist Unfallversicherung?", choices: ["Absicherung bei Arbeitsunfällen", "Steuer", "Kredit", "Geschenk"], a: 0, en: "Accident insurance.", tip: "BG" },
+  { id: 280, topic: "Mensch & Gesellschaft", q: "Was ist Solidarität?", choices: ["Füreinander einstehen", "Gegeneinander", "Isolation", "Egoismus"], a: 0, en: "Standing together.", tip: "Solidarität = Zusammenhalt" },
+  { id: 281, topic: "Mensch & Gesellschaft", q: "Was bedeutet Integration?", choices: ["Teilhabe von Migranten an Gesellschaft", "Abgrenzung", "Isolation", "Trennung"], a: 0, en: "Integration = inclusion.", tip: "Zusammenleben" },
+  { id: 282, topic: "Mensch & Gesellschaft", q: "Was bedeutet Toleranz?", choices: ["Akzeptanz anderer Meinungen/Lebensweisen", "Nur eigene Meinung gilt", "Intoleranz", "Verbot"], a: 0, en: "Tolerance = acceptance.", tip: "Respekt" },
+  { id: 283, topic: "Mensch & Gesellschaft", q: "Was bedeutet Verantwortung?", choices: ["Für eigenes Handeln einstehen", "Alles egal", "Keine Pflicht", "Nur Staat entscheidet"], a: 0, en: "Responsibility.", tip: "Eigenes Handeln" },
+  { id: 284, topic: "Mensch & Gesellschaft", q: "Was bedeutet Solidaritätsprinzip?", choices: ["Starke helfen Schwachen", "Jeder nur für sich", "Nur Reiche profitieren", "Staat zahlt alles"], a: 0, en: "Strong help weak.", tip: "Sozialstaat-Prinzip" },
+  { id: 285, topic: "Mensch & Gesellschaft", q: "Was bedeutet Ehrenamt?", choices: ["Freiwillige Arbeit ohne Bezahlung", "Bezahlt", "Zwang", "Amt im Staat"], a: 0, en: "Voluntary work.", tip: "Ehre + Amt" },
+  { id: 286, topic: "Mensch & Gesellschaft", q: "Was ist eine Bürgerinitiative?", choices: ["Gruppe von Bürgern für ein Ziel", "Partei", "Gericht", "Gewerkschaft"], a: 0, en: "Citizen action group.", tip: "Initiative = Initiative der Bürger" }
+];
+const STARTER_PACK_EXTRA_287_300 = [
+  { id: 287, topic: "Mensch & Gesellschaft", q: "Was ist ein Bürgerbegehren?", choices: ["Volksabstimmung auf kommunaler Ebene", "Bundesgesetz", "Partei", "Gerichtsurteil"], a: 0, en: "Local referendum (citizens' petition).", tip: "Kommunale Ebene" },
+  { id: 288, topic: "Mensch & Gesellschaft", q: "Was ist ein Volksentscheid?", choices: ["Direkte Abstimmung des Volkes", "Entscheidung des Bundestages", "Gerichtsverfahren", "Parlamentsbeschluss"], a: 0, en: "Direct referendum by the people.", tip: "Volk entscheidet" },
+  { id: 289, topic: "Mensch & Gesellschaft", q: "Was ist eine Petition?", choices: ["Schriftliche Bitte/Beschwerde an zuständige Stelle", "Steuererklärung", "Parteimitgliedschaft", "Gerichtsverfahren"], a: 0, en: "Written request/complaint to an authority.", tip: "Petition = Bitte" },
+  { id: 290, topic: "Mensch & Gesellschaft", q: "Wer darf eine Petition einreichen?", choices: ["Jeder", "Nur Deutsche", "Nur Politiker", "Nur Parteien"], a: 0, en: "Anyone may file a petition.", tip: "Grundrecht" },
+  { id: 291, topic: "Mensch & Gesellschaft", q: "Was ist kommunale Selbstverwaltung?", choices: ["Gemeinden regeln eigene Angelegenheiten", "Bund entscheidet alles", "Nur Länder entscheiden", "EU entscheidet"], a: 0, en: "Municipalities manage own affairs.", tip: "Gemeinde = Selbstverwaltung" },
+  { id: 292, topic: "Mensch & Gesellschaft", q: "Was ist ein Landkreis?", choices: ["Zusammenschluss mehrerer Gemeinden", "Ein Stadtteil", "Ein Bundesland", "Ein Stadtstaat"], a: 0, en: "District grouping municipalities.", tip: "Landkreis = Gemeinden" },
+  { id: 293, topic: "Mensch & Gesellschaft", q: "Was ist eine Kommune?", choices: ["Gemeinde/Stadt", "Bund", "Land", "EU"], a: 0, en: "Municipality.", tip: "Kommune = Gemeinde" },
+  { id: 294, topic: "Mensch & Gesellschaft", q: "Was ist eine Gemeinderatssitzung?", choices: ["Treffen der gewählten Ratsmitglieder", "Gerichtsverhandlung", "Parteitag", "Schulversammlung"], a: 0, en: "Meeting of elected municipal council.", tip: "Ratssitzung Gemeinde" },
+  { id: 295, topic: "Mensch & Gesellschaft", q: "Was ist ein Bürgermeister?", choices: ["Leiter einer Gemeinde/Stadt", "Chef der Polizei", "Chef des Bundesrates", "Bundespräsident"], a: 0, en: "Mayor of a town/city.", tip: "Bürger = Gemeindechef" },
+  { id: 296, topic: "Mensch & Gesellschaft", q: "Wer bezahlt die Grundschule in Deutschland?", choices: ["Der Staat", "Die Eltern allein", "Private Spenden", "Die Kirche"], a: 0, en: "The state funds elementary school.", tip: "Öffentliche Schulen = staatlich" },
+  { id: 297, topic: "Mensch & Gesellschaft", q: "Welche Schularten gibt es in Deutschland?", choices: ["Grundschule, Hauptschule, Realschule, Gymnasium", "Nur Grundschule", "Nur Gymnasium", "Nur Hauptschule"], a: 0, en: "Types: Primary, secondary, middle, grammar schools.", tip: "Vier Schularten" },
+  { id: 298, topic: "Mensch & Gesellschaft", q: "Was ist ein Abitur?", choices: ["Hochschulzugangsberechtigung", "Grundschulabschluss", "Berufsabschluss", "Meisterprüfung"], a: 0, en: "University entrance qualification.", tip: "Abi = Uni-Zugang" },
+  { id: 299, topic: "Mensch & Gesellschaft", q: "Was ist eine Berufsausbildung?", choices: ["Praktische + schulische Ausbildung für Beruf", "Urlaub", "Sportkurs", "Studium"], a: 0, en: "Vocational training.", tip: "Lehre + Berufsschule" },
+  { id: 300, topic: "Mensch & Gesellschaft", q: "Was bedeutet duales Ausbildungssystem?", choices: ["Kombination von Betrieb und Berufsschule", "Nur Studium", "Nur Schule", "Nur Betrieb"], a: 0, en: "Combination of company + vocational school.", tip: "Dual = 2 Orte: Schule + Betrieb" }
+];
+
+ STARTER_PACK = [ ...STARTER_PACK, ...STARTER_PACK_EXTRA_37_86, ...STARTER_PACK_EXTRA_87_136,...STARTER_PACK_EXTRA_137_186,...STARTER_PACK_EXTRA_187_236,...STARTER_PACK_EXTRA_237_286,...STARTER_PACK_EXTRA_287_300];
+  const STORAGE = { q:'lid.qs.v2', xp:'lid.xp', hearts:'lid.hearts', streak:'lid.streak', badges:'lid.badges', theme:'lid.theme' };
+
+  function initDeck(raw){ const t=todayISO(); return raw.map(q=>({ ...q, box:q.box||1, due:q.due||t })); }
+  function load(){
+    const qs = JSON.parse(localStorage.getItem(STORAGE.q)||'null') || initDeck(STARTER_PACK);
+    const xp = Number(localStorage.getItem(STORAGE.xp)||0);
+    const hearts = Number(localStorage.getItem(STORAGE.hearts)||3);
+    const streak = JSON.parse(localStorage.getItem(STORAGE.streak)||'null') || { last: todayISO(), count: 1 };
+    const badges = JSON.parse(localStorage.getItem(STORAGE.badges)||'[]');
+    const theme = localStorage.getItem(STORAGE.theme)||'light';
+    return { qs, xp, hearts, streak, badges, theme };
+  }
+  function save(state){
+    localStorage.setItem(STORAGE.q, JSON.stringify(state.qs));
+    localStorage.setItem(STORAGE.xp, String(state.xp));
+    localStorage.setItem(STORAGE.hearts, String(state.hearts));
+    localStorage.setItem(STORAGE.streak, JSON.stringify(state.streak));
+    localStorage.setItem(STORAGE.badges, JSON.stringify(state.badges));
+    localStorage.setItem(STORAGE.theme, state.theme);
+  }
+
+  let state = load();
+
+  // Theme
+  function applyTheme(){ document.documentElement.classList.toggle('dark', state.theme==='dark'); document.body.classList.toggle('bg-slate-900', state.theme==='dark'); document.body.classList.toggle('text-slate-100', state.theme==='dark'); }
+  applyTheme();
+  $('#themeToggle').addEventListener('click', ()=>{ state.theme = state.theme==='dark'?'light':'dark'; save(state); applyTheme(); });
+
+  // Streak update on load
+  (function updateStreakOnLoad(){
+    const t = todayISO();
+    const diff = Math.floor((new Date(t) - new Date(state.streak.last))/(1000*60*60*24));
+    if (diff === 1) state.streak = { last: t, count: state.streak.count + 1 };
+    else if (diff > 1) state.streak = { last: t, count: 1 };
+    else if (diff === 0 && state.streak.count === 0) state.streak = { last: t, count: 1 };
+    save(state);
+  })();
+
+  // Render helpers
+  function renderTopics(){
+    const select = $('#topicFilter');
+    const topics = ['all', ...Array.from(new Set(state.qs.map(q=>q.topic)))];
+    select.innerHTML = topics.map(t=>`<option value="${t}">${t}</option>`).join('');
+  }
+  function currentFilter(){
+    const t = $('#topicFilter').value;
+    const today = todayISO();
+    const due = state.qs.filter(q => q.due <= today && (t==='all' || q.topic===t));
+    $('#dueCount').textContent = due.length; $('#totalCount').textContent = state.qs.length; return { t, due };
+  }
+  function updateHeader(){ $('#xp').textContent=state.xp; $('#hearts').textContent=state.hearts>0?'❤'.repeat(state.hearts):'—'; $('#streak').textContent=`${state.streak.count} 🔥`; }
+  function resetHearts(){ state.hearts=3; save(state); updateHeader(); }
+  function handleResult(qid, correct){
+    const today = todayISO();
+    state.qs = state.qs.map(q=>{ if(q.id!==qid) return q; let box=q.box||1; box = correct? clamp(box+1,1,5):1; const days=BOX_STEPS[box]; const d=new Date(); d.setDate(d.getDate()+days); return { ...q, box, due: d.toISOString().slice(0,10) }; });
+    state.xp += correct? 10: 2; if(!correct) state.hearts = Math.max(0, state.hearts-1); save(state); updateHeader();
+  }
+
+  // Learn
+  function renderLearn(){
+    const view = $('#view-learn'); view.innerHTML=''; const {due}=currentFilter(); const list = due.length? due: shuffle(state.qs).slice(0,10);
+    if(!list.length){ view.innerHTML='<div class="card">No cards due. 🎉 Try Quiz or add more questions in Data.</div>'; return; }
+    let idx=0; const tpl=$('#flashcard-tpl');
+    function show(){
+      view.innerHTML=''; const q=list[idx]; const node=tpl.content.cloneNode(true);
+      node.querySelector('[data-q]').textContent = q.q;
+      node.querySelector('[data-en]').textContent = q.en;
+      node.querySelector('[data-tip]').textContent = q.tip||'';
+      node.querySelector('[data-idx]').textContent = `${idx+1}/${list.length}`;
+      node.querySelector('[data-box]').textContent = q.box; node.querySelector('[data-due]').textContent=q.due; node.querySelector('[data-topic]').textContent=q.topic;
+      node.querySelector('[data-correct]').textContent = q.choices[q.a];
+      const wrap = node.querySelector('[data-choices]');
+      shuffle(q.choices.map((c,i)=>({c,i}))).forEach(({c,i})=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=c; b.onclick=()=>{ const ok=(i===q.a); b.classList.add(ok?'bg-emerald-100':'bg-rose-100'); handleResult(q.id, ok); }; wrap.appendChild(b); });
+      node.querySelector('[data-next]').onclick=()=>{ idx=(idx+1)%list.length; show(); };
+      node.querySelector('[data-skip]').onclick=()=>{ idx=(idx+1)%list.length; show(); };
+      view.appendChild(node);
+    }
+    show();
+  }
+
+  // Quiz
+  function renderQuiz(){
+    const view = $('#view-quiz'); view.innerHTML=''; const {due}=currentFilter(); const list = shuffle(due.length? due: state.qs).slice(0,12);
+    if(!list.length){ view.innerHTML='<div class="card">No questions. Add more in Data.</div>'; return; }
+    let idx=0; const tpl=$('#quizcard-tpl');
+    function show(){
+      view.innerHTML=''; const q=list[idx]; const node=tpl.content.cloneNode(true);
+      node.querySelector('[data-q]').textContent=q.q; node.querySelector('[data-en]').textContent=q.en; node.querySelector('[data-topic]').textContent=q.topic; node.querySelector('[data-idx]').textContent=`${idx+1}/${list.length}`; node.getElementById('hearts-inline').textContent=state.hearts>0?'❤'.repeat(state.hearts):'—';
+      const feedback = node.querySelector('[data-feedback]'); const wrap=node.querySelector('[data-choices]');
+      shuffle(q.choices.map((c,i)=>({c,i}))).forEach(({c,i})=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=c; b.onclick=()=>{ const ok=(i===q.a); handleResult(q.id, ok); feedback.innerHTML = ok? '<span class="text-emerald-700">✅ Correct!</span>' : `<span class="text-rose-700">❌ Wrong.</span> Correct: <b>${q.choices[q.a]}</b>`; b.blur(); }; wrap.appendChild(b); });
+      node.querySelector('[data-next]').onclick=()=>{ idx=(idx+1)%list.length; show(); };
+      view.appendChild(node);
+    }
+    show();
+  }
+
+  // Review
+  function renderReview(){
+    const view=$('#view-review'); view.innerHTML=''; const list=state.qs.filter(q=>q.box===1);
+    if(!list.length){ view.innerHTML='<div class="card">Nothing to review. 🎉</div>'; return; }
+    const grid=document.createElement('div'); grid.className='grid md:grid-cols-2 gap-3';
+    list.slice(0,20).forEach(q=>{ const div=document.createElement('div'); div.className='card'; div.innerHTML = `<div class='text-xs text-slate-500 mb-1'>${q.topic}</div><div class='font-semibold'>${q.q}</div><div class='text-sm text-slate-600 mt-1'><b>EN:</b> ${q.en}</div><div class='text-sm text-emerald-700 mt-1'><b>Tip:</b> ${q.tip||''}</div><div class='mt-2 text-sm'>Answer: <b>${q.choices[q.a]}</b></div>`; grid.appendChild(div); });
+    view.appendChild(grid);
+    const btn=document.createElement('button'); btn.className='btn mt-2'; btn.textContent='Reset hearts'; btn.onclick=resetHearts; view.appendChild(btn);
+  }
+
+  // Plan (auto schedule until exam date: 2025-09-19 Europe/Berlin)
+  function renderPlan(){
+    const exam = new Date('2025-09-19T00:00:00+02:00');
+    const today = new Date(); const daysLeft = Math.max(0, Math.ceil((exam - today)/(1000*60*60*24)));
+    const card = $('#planCard');
+    const perDay = 300; // target coverage (all questions once)
+    const recommend = daysLeft ? Math.ceil(perDay / daysLeft) : perDay;
+    card.innerHTML = `
+      <h2 class='text-lg font-semibold mb-2'>Exam Plan — ${daysLeft} day(s) left</h2>
+      <p class='text-sm mb-2'>Goal: cover all 300 once + repeat mistakes via Review.</p>
+      <div class='grid sm:grid-cols-2 gap-3'>
+        <div class='card'>
+          <h3 class='font-semibold mb-1'>Daily</h3>
+          <ul class='list-disc ml-5 text-sm space-y-1'>
+            <li>${Math.max(10,recommend)} flashcards (due first)</li>
+            <li>12‑Q quiz (mixed)</li>
+            <li>Review wrong ones (box 1)</li>
+          </ul>
+        </div>
+        <div class='card'>
+          <h3 class='font-semibold mb-1'>Focus</h3>
+          <ul class='list-disc ml-5 text-sm space-y-1'>
+            <li>Dates: 3 Oct 1990 (Unity), 9 Nov 1989 (Wall)</li>
+            <li>Institutions: Bundestag/‑rat, Präsident, Kanzler</li>
+            <li>Rights: Presse/Meinung/Religion, Art. 3 GG</li>
+            <li>Symbols: Schwarz‑Rot‑Gold, Bundesadler, Hauptstadt Berlin</li>
+          </ul>
+        </div>
+      </div>`;
+  }
+
+  // Data view
+  function renderData(){ $('#jsonPreview').value = JSON.stringify(state.qs, null, 2); }
+
+  // Swipe functionality for mobile cards
+  function addSwipeListeners() {
+    document.querySelectorAll('.swipeable').forEach(card => {
+      let startX = 0, startY = 0, currentX = 0, currentY = 0;
+      let isDragging = false, hasMoved = false;
+      
+      const handleStart = (e) => {
+        const touch = e.touches ? e.touches[0] : e;
+        startX = touch.clientX;
+        startY = touch.clientY;
+        currentX = startX;
+        currentY = startY;
+        isDragging = true;
+        hasMoved = false;
+        card.style.transition = 'none';
+      };
+      
+      const handleMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        currentX = touch.clientX;
+        currentY = touch.clientY;
+        const deltaX = currentX - startX;
+        const deltaY = currentY - startY;
+        
+        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+          hasMoved = true;
+        }
+        
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+          const rotation = deltaX * 0.1;
+          const opacity = Math.max(0.7, 1 - Math.abs(deltaX) / 300);
+          card.style.transform = `translateX(${deltaX}px) rotate(${rotation}deg)`;
+          card.style.opacity = opacity;
+          
+          // Visual feedback
+          if (deltaX > 50) {
+            card.style.borderColor = '#10b981'; // green
+            card.style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.3)';
+          } else if (deltaX < -50) {
+            card.style.borderColor = '#ef4444'; // red
+            card.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.3)';
+          } else {
+            card.style.borderColor = '';
+            card.style.boxShadow = '';
+          }
+        }
+      };
+      
+      const handleEnd = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        const deltaX = currentX - startX;
+        card.style.transition = 'all 0.3s ease';
+        
+        if (Math.abs(deltaX) > 100) {
+          // Trigger action based on swipe direction
+          if (deltaX > 0) {
+            // Swipe right - positive action
+            const nextBtn = card.querySelector('[data-next]');
+            const goodBtn = card.querySelector('[data-good]');
+            if (nextBtn) nextBtn.click();
+            else if (goodBtn) goodBtn.click();
+          } else {
+            // Swipe left - negative action
+            const skipBtn = card.querySelector('[data-skip]');
+            const againBtn = card.querySelector('[data-again]');
+            if (skipBtn) skipBtn.click();
+            else if (againBtn) againBtn.click();
+          }
+          
+          // Animate card away
+          card.style.transform = `translateX(${deltaX > 0 ? '100%' : '-100%'}) rotate(${deltaX > 0 ? '20deg' : '-20deg'})`;
+          card.style.opacity = '0';
+          
+          setTimeout(() => {
+            card.style.transform = '';
+            card.style.opacity = '';
+            card.style.borderColor = '';
+            card.style.boxShadow = '';
+          }, 300);
+        } else {
+          // Snap back
+          card.style.transform = '';
+          card.style.opacity = '';
+          card.style.borderColor = '';
+          card.style.boxShadow = '';
+        }
+      };
+      
+      // Touch events
+      card.addEventListener('touchstart', handleStart, { passive: false });
+      card.addEventListener('touchmove', handleMove, { passive: false });
+      card.addEventListener('touchend', handleEnd);
+      
+      // Mouse events for desktop testing
+      card.addEventListener('mousedown', handleStart);
+      card.addEventListener('mousemove', handleMove);
+      card.addEventListener('mouseup', handleEnd);
+      card.addEventListener('mouseleave', handleEnd);
+    });
+  }
+  
+  // Add swipe listeners after rendering
+  const originalRenderLearn = renderLearn;
+  const originalRenderQuiz = renderQuiz;
+  
+  renderLearn = function() {
+    originalRenderLearn();
+    setTimeout(addSwipeListeners, 100);
+  };
+  
+  renderQuiz = function() {
+    originalRenderQuiz();
+    setTimeout(addSwipeListeners, 100);
+  };
+
+  // Events
+  $$('nav [data-tab]').forEach(btn=> btn.addEventListener('click', ()=> setTab(btn.dataset.tab)));
+  $('#topicFilter').addEventListener('change', ()=>{ renderLearn(); renderQuiz(); renderReview(); currentFilter(); });
+  $('#exportBtn').addEventListener('click', ()=>{ const blob=new Blob([JSON.stringify(state.qs,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='lid-questions.json'; a.click(); URL.revokeObjectURL(url); });
+  $('#importFile').addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); try{ const data=JSON.parse(text); if(!Array.isArray(data)) throw new Error('JSON must be an array'); data.forEach((q,i)=>{ if(!q.q || !q.choices || typeof q.a!=='number') throw new Error('Invalid at index '+i); }); state.qs = initDeck(data); save(state); renderTopics(); setTab('learn'); }catch(err){ alert('Import error: '+err.message); }});
+  $('#resetBtn').addEventListener('click', ()=>{ if(confirm('Reset to starter pack?')){ state.qs = initDeck(STARTER_PACK); save(state); renderTopics(); setTab('learn'); }});
+  $('#bulkAdd').addEventListener('click', ()=>{ const t=$('#bulkPaste').value.trim(); if(!t) return; const lines=t.split(/\n+/); let maxId = state.qs.reduce((m,q)=>Math.max(m,q.id||0),0); const added=[]; for(const line of lines){ const parts=line.split('|').map(s=>s.trim()); if(parts.length<9) continue; const [idStr, topic, q, A,B,C,D, aStr, en, tip=''] = parts; const id = Number(idStr)||(++maxId); const a = Number(aStr); if([A,B,C,D].some(x=>!x) || isNaN(a)) continue; added.push({ id, topic: topic||'Allgemein', q, choices:[A,B,C,D], a, en: en||'Helper', tip }); }
+    if(!added.length){ alert('No valid rows found.'); return; } state.qs = initDeck(state.qs.concat(added)); save(state); renderTopics(); setTab('learn'); $('#bulkPaste').value=''; alert(`Added ${added.length} question(s).`); });
+  $('#clearPaste').addEventListener('click', ()=> $('#bulkPaste').value='');
+
+  function setTab(id){ $$('#view-learn, #view-quiz, #view-review, #view-plan, #view-data').forEach(el=>el.classList.add('hidden')); $('#view-'+id).classList.remove('hidden'); $$('nav [data-tab]').forEach(b=>b.classList.remove('btn-primary')); $(`nav [data-tab="${id}"]`).classList.add('btn-primary'); if(id==='learn') renderLearn(); if(id==='quiz') renderQuiz(); if(id==='review') renderReview(); if(id==='plan') renderPlan(); if(id==='data') renderData(); }
+
+  // Init
+  renderTopics(); updateHeader(); setTab('learn'); currentFilter();
+  </script>
+</body>
+</html>
