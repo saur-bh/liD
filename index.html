@@ -3,75 +3,246 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Leben in Deutschland – 40er Lernmodus (Tailwind)</title>
+  <title>Leben in Deutschland – Flashcard Trainer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <meta name="color-scheme" content="light dark" />
   <style>
-    /* Safari-safe focus and details styling */
+    /* Custom styles for flashcard UI */
     :focus { outline: none; }
-    .answer-revealed .choice.correct { border-color: rgb(34 197 94) !important; background: rgb(220 252 231); }
-    .answer-revealed .choice.incorrect.selected { border-color: rgb(239 68 68) !important; background: rgb(254 226 226); }
-    .choice.selected { box-shadow: 0 0 0 2px rgba(59,130,246,.4) inset; }
-    .tip { display:none; }
-    .show-tip .tip { display:block; }
+    
+    /* Flashcard container */
+    .flashcard-container {
+      perspective: 1000px;
+      min-height: 500px;
+    }
+    
+    .flashcard {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 500px;
+      transform-style: preserve-3d;
+      transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+      cursor: grab;
+    }
+    
+    .flashcard.flipped {
+      transform: rotateY(180deg);
+    }
+    
+    .flashcard-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 1rem;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    
+    .flashcard-back {
+      transform: rotateY(180deg);
+    }
+    
+    /* Answer states */
+    .choice.correct {
+      border-color: rgb(34 197 94) !important;
+      background: rgb(220 252 231) !important;
+      color: rgb(21 128 61) !important;
+    }
+    
+    .choice.incorrect {
+      border-color: rgb(239 68 68) !important;
+      background: rgb(254 226 226) !important;
+      color: rgb(185 28 28) !important;
+    }
+    
+    .choice.selected {
+      border-color: rgb(59 130 246) !important;
+      background: rgb(219 234 254) !important;
+      transform: scale(1.02);
+    }
+    
+    /* Swipe indicators */
+    .swipe-indicator {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+      pointer-events: none;
+    }
+    
+    .swipe-left {
+      left: 20px;
+      color: rgb(239 68 68);
+    }
+    
+    .swipe-right {
+      right: 20px;
+      color: rgb(34 197 94);
+    }
+    
+    /* Progress ring */
+    .progress-ring {
+      transform: rotate(-90deg);
+    }
+    
+    /* Animations */
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideInLeft {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .slide-in-right {
+      animation: slideInRight 0.4s ease-out;
+    }
+    
+    .slide-in-left {
+      animation: slideInLeft 0.4s ease-out;
+    }
+    
+    /* Button improvements */
+    .btn-primary {
+      background: linear-gradient(135deg, rgb(59 130 246), rgb(37 99 235));
+      box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+    }
+    
+    .btn-primary:hover {
+      background: linear-gradient(135deg, rgb(37 99 235), rgb(29 78 216));
+      box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.4);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, rgb(34 197 94), rgb(22 163 74));
+      box-shadow: 0 4px 14px 0 rgba(34, 197, 94, 0.3);
+    }
+    
+    .btn-danger {
+      background: linear-gradient(135deg, rgb(239 68 68), rgb(220 38 38));
+      box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.3);
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased">
-  <div class="max-w-xl mx-auto px-2 py-4">
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 antialiased min-h-screen">
+  <div class="max-w-md mx-auto px-4 py-6">
     <!-- Header -->
-    <header class="flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Leben in Deutschland – 40 Fragen Trainer</h1>
-        <p class="text-slate-600">Einfach üben: wähle eine Antwort, prüfe dich, zeige die Lösung, lerne mit Merkhilfe (EN).</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <button id="darkToggle" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm hover:opacity-90 transition">
-          🌙/☀️
-        </button>
-      </div>
+    <header class="text-center mb-6">
+      <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+        🇩🇪 Leben in Deutschland
+      </h1>
+      <p class="text-slate-600 text-sm">
+        Flashcard Trainer • Swipe to navigate
+      </p>
     </header>
 
-    <!-- Controls -->
-    <section class="mt-4 grid gap-3 md:grid-cols-3">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div class="text-sm text-slate-500 mb-1">Fortschritt</div>
-        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div id="progressBar" class="h-full bg-blue-500 w-0 transition-all duration-300"></div>
+    <!-- Progress & Controls -->
+    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 mb-6">
+      <!-- Progress Display -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="relative w-12 h-12">
+            <svg class="progress-ring w-12 h-12" viewBox="0 0 36 36">
+              <path class="text-slate-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path id="progressRing" class="text-blue-500" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-700">
+              <span id="progressPercent">0%</span>
+            </div>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-slate-800">
+              <span id="doneCount">0</span>/<span id="totalCount">40</span>
+            </div>
+            <div class="text-sm text-slate-500">Score: <span id="scoreCount" class="font-medium text-green-600">0</span></div>
+          </div>
         </div>
-        <div class="mt-2 text-sm"><span id="doneCount">0</span>/<span id="totalCount">0</span> beantwortet · Score: <span id="scoreCount">0</span></div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex items-center justify-between gap-2">
-        <div>
-          <div class="text-sm text-slate-500">Modus</div>
-          <div class="font-medium">Üben (mit Lösungen)</div>
-        </div>
-        <div class="flex gap-2">
-          <button id="revealAll" class="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-50">Alle Lösungen zeigen</button>
-          <button id="hideAll" class="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-50">Alle Lösungen verbergen</button>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex items-center justify-between gap-2">
-        <div>
-          <div class="text-sm text-slate-500">Reihenfolge</div>
-          <div class="font-medium">Original · oder Mischen</div>
-        </div>
-        <div class="flex gap-2">
-          <button id="shuffleBtn" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-700">Mischen</button>
-          <button id="resetBtn" class="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-50">Zurücksetzen</button>
+        <div class="text-right">
+          <div class="text-sm text-slate-500">Card</div>
+          <div class="text-lg font-bold text-slate-800">
+            <span id="currentCard">1</span>
+          </div>
         </div>
       </div>
-    </section>
+      
+      <!-- Control Buttons -->
+      <div class="grid grid-cols-2 gap-2">
+        <button id="shuffleBtn" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-medium transition-all">
+          🔀 Shuffle
+        </button>
+        <button id="resetBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition-all">
+          🔄 Reset
+        </button>
+      </div>
+    </div>
 
-    <!-- Questions -->
-    <section id="cards" class="mt-6 grid gap-4">
-  <!-- JS will inject one card here -->
-    </section>
+    <!-- Flashcard Container -->
+    <div class="flashcard-container relative">
+      <!-- Swipe Indicators -->
+      <div class="swipe-indicator swipe-left">
+        <div class="text-4xl">👈</div>
+        <div class="text-sm font-medium">Previous</div>
+      </div>
+      <div class="swipe-indicator swipe-right">
+        <div class="text-4xl">👉</div>
+        <div class="text-sm font-medium">Next</div>
+      </div>
+      
+      <!-- Flashcard -->
+      <div id="flashcard" class="flashcard bg-white shadow-xl border border-white/20">
+        <!-- Front Face (Question) -->
+        <div class="flashcard-face flashcard-front bg-gradient-to-br from-blue-50 to-indigo-50">
+          <div id="questionContent" class="text-center">
+            <!-- Question content will be injected here -->
+          </div>
+        </div>
+        
+        <!-- Back Face (Answer) -->
+        <div class="flashcard-face flashcard-back bg-gradient-to-br from-green-50 to-emerald-50">
+          <div id="answerContent" class="text-center">
+            <!-- Answer content will be injected here -->
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Navigation Controls -->
+    <div class="flex justify-between items-center mt-6 gap-4">
+      <button id="prevBtn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        ← Previous
+      </button>
+      
+      <button id="flipBtn" class="btn-primary text-white px-6 py-3 rounded-xl font-medium transition-all">
+        🔄 Flip
+      </button>
+      
+      <button id="nextBtn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        Next →
+      </button>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="grid grid-cols-2 gap-3 mt-4">
+      <button id="correctBtn" class="btn-success text-white px-4 py-3 rounded-xl font-medium transition-all">
+        ✅ Correct
+      </button>
+      <button id="incorrectBtn" class="btn-danger text-white px-4 py-3 rounded-xl font-medium transition-all">
+        ❌ Incorrect
+      </button>
+    </div>
 
     <!-- Footer -->
-    <footer class="mt-10 text-center text-sm text-slate-500">
-      <p>💡 Tipp: Du brauchst im echten Test nur <strong>17/33 richtig</strong> – diese 40 Karten helfen dir sicher zu bestehen.</p>
+    <footer class="mt-8 text-center text-sm text-slate-500">
+      <p>💡 <strong>Tip:</strong> You need only 17/33 correct in the real test</p>
+      <p class="mt-1">Swipe left/right or use buttons to navigate</p>
     </footer>
   </div>
 
@@ -120,176 +291,293 @@
       {id:40,q:"Wie heißt die Hymne Deutschlands?",c:["Wacht am Rhein","Deutschlandlied","Ode an die Freude","Einigkeit & Recht & Freiheit"],a:1,tip:"Deutschlandlied (sing verse 3)."}
     ];
 
-    // Mobile-friendly: show one card at a time
-    const cardsEl = document.getElementById('cards');
+    // Flashcard App State
+    const questionContent = document.getElementById('questionContent');
+    const answerContent = document.getElementById('answerContent');
+    const flashcard = document.getElementById('flashcard');
     const totalCountEl = document.getElementById('totalCount');
     const doneCountEl = document.getElementById('doneCount');
     const scoreCountEl = document.getElementById('scoreCount');
-    const progressBar = document.getElementById('progressBar');
+    const progressRing = document.getElementById('progressRing');
+    const progressPercent = document.getElementById('progressPercent');
+    const currentCardEl = document.getElementById('currentCard');
+    
+    // Navigation elements
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const flipBtn = document.getElementById('flipBtn');
+    const correctBtn = document.getElementById('correctBtn');
+    const incorrectBtn = document.getElementById('incorrectBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
     let order = [...DATA.keys()];
-    let selected = new Map(); // id -> choice index
-    let revealed = new Set(); // ids revealed
-    let checked = new Set();  // ids checked (answered)
+    let userAnswers = new Map(); // id -> 'correct' | 'incorrect' | null
     let score = 0;
-    let currentIdx = 0; // index in order
+    let currentIdx = 0;
+    let isFlipped = false;
+    
+    // Touch/swipe handling
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
 
     function fmtLetter(i){ return ["a","b","c","d"][i]; }
 
-    function render(){
-      totalCountEl.textContent = DATA.length.toString();
-      cardsEl.innerHTML = "";
+    function renderFlashcard() {
       const idx = order[currentIdx];
       const item = DATA[idx];
-      const isRevealed = revealed.has(item.id);
-      const isChecked = checked.has(item.id);
-      const sel = selected.get(item.id);
-
-      const card = document.createElement('article');
-      card.className = `rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5 transition ${isRevealed?'answer-revealed':''} ${isChecked?'show-tip':''}`;
-      card.dataset.id = item.id;
-
-      // Header
-      const head = document.createElement('div');
-      head.className = "flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between";
-      head.innerHTML = `
-        <div class="font-semibold text-slate-800">#${item.id}. ${item.q}</div>
-        <div class="flex gap-2 mt-2 sm:mt-0">
-          <button class="reveal px-3 py-1.5 rounded-lg border border-slate-300 text-sm hover:bg-slate-50">${isRevealed?'Lösung verbergen':'Lösung zeigen'}</button>
-          <button class="check px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">Prüfen</button>
+      const userAnswer = userAnswers.get(item.id);
+      
+      // Update card counter
+      currentCardEl.textContent = (currentIdx + 1).toString();
+      
+      // Render question side
+      questionContent.innerHTML = `
+        <div class="mb-4">
+          <div class="text-sm text-blue-600 font-medium mb-2">Question ${item.id}/40</div>
+          <h2 class="text-xl font-bold text-slate-800 mb-6">${item.q}</h2>
+        </div>
+        <div class="space-y-3">
+          ${item.c.map((choice, i) => `
+            <div class="choice p-3 rounded-lg border-2 border-slate-200 bg-white hover:border-blue-300 transition-all cursor-pointer" data-choice="${i}">
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs font-bold">
+                  ${fmtLetter(i).toUpperCase()}
+                </div>
+                <div class="flex-1 text-slate-700">${choice}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="mt-6 text-center">
+          <p class="text-sm text-slate-500">Select an answer, then flip to see the solution</p>
         </div>
       `;
-      card.appendChild(head);
-
-      // Choices
-      const list = document.createElement('div');
-      list.className = "mt-3 grid gap-2";
-      item.c.forEach((text, i)=>{
-        const isCorrect = i === item.a;
-        const isSelected = sel === i;
-
-        const btn = document.createElement('button');
-        btn.type = "button";
-        btn.className = `choice w-full text-left px-3 py-2 rounded-xl border ${isSelected?'selected':''} ${isCorrect?'correct':''} ${isSelected && isRevealed && !isCorrect?'incorrect selected':''} border-slate-300 hover:bg-slate-50`;
-        btn.dataset.choice = i;
-        btn.innerHTML = `
-          <div class="flex items-start gap-3">
-            <div class="mt-0.5 shrink-0 font-mono text-xs uppercase tracking-wide text-slate-500">${fmtLetter(i)})</div>
-            <div class="grow">${text}</div>
+      
+      // Render answer side
+      const correctChoice = item.c[item.a];
+      answerContent.innerHTML = `
+        <div class="text-center">
+          <div class="text-sm text-green-600 font-medium mb-2">Answer ${item.id}/40</div>
+          <h2 class="text-xl font-bold text-slate-800 mb-4">${item.q}</h2>
+          
+          <div class="bg-green-100 border-2 border-green-300 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 justify-center">
+              <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold">
+                ${fmtLetter(item.a).toUpperCase()}
+              </div>
+              <div class="text-green-800 font-medium">${correctChoice}</div>
+            </div>
           </div>
-        `;
-        list.appendChild(btn);
-      });
-      card.appendChild(list);
-
-      // Tip (always visible for memory)
-      const tip = document.createElement('div');
-      tip.className = "tip mt-3 text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-xl p-3 block";
-      tip.innerHTML = `🧠 <span class="font-medium">Memory:</span> ${item.tip}`;
-      card.appendChild(tip);
-
-      // Footer row (status)
-      const foot = document.createElement('div');
-      foot.className = "mt-3 text-xs text-slate-500 flex items-center justify-between";
-      const status = isChecked ? (sel===item.a ? "✅ Richtig" : "❌ Falsch") : "—";
-      foot.innerHTML = `<div>Status: <span class="font-medium">${status}</span></div>`;
-      card.appendChild(foot);
-
-      // Navigation
-      const nav = document.createElement('div');
-      nav.className = "mt-4 flex justify-between gap-2";
-      nav.innerHTML = `
-        <button class="prev px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm w-1/2" ${currentIdx===0?'disabled':''}>← Zurück</button>
-        <button class="next px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm w-1/2" ${currentIdx===order.length-1?'disabled':''}>Weiter →</button>
+          
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <div class="text-amber-800">
+              <span class="font-medium">💡 Memory Tip:</span> ${item.tip}
+            </div>
+          </div>
+          
+          ${userAnswer ? `
+            <div class="text-sm ${userAnswer === 'correct' ? 'text-green-600' : 'text-red-600'}">
+              Your answer: ${userAnswer === 'correct' ? '✅ Correct' : '❌ Incorrect'}
+            </div>
+          ` : `
+            <p class="text-sm text-slate-500">Mark your answer as correct or incorrect</p>
+          `}
+        </div>
       `;
-      card.appendChild(nav);
-
-      cardsEl.appendChild(card);
+      
       updateProgress();
+      updateNavigationButtons();
     }
 
-    function updateProgress(){
-      const done = checked.size;
+    function updateProgress() {
+      const answered = userAnswers.size;
       const total = DATA.length;
-      doneCountEl.textContent = done.toString();
+      const percentage = Math.round((answered / total) * 100);
+      
+      doneCountEl.textContent = answered.toString();
       scoreCountEl.textContent = score.toString();
-      progressBar.style.width = `${(done/total)*100}%`;
+      progressPercent.textContent = `${percentage}%`;
+      
+      // Update progress ring
+      const circumference = 2 * Math.PI * 15.9155;
+      const strokeDasharray = `${(percentage / 100) * circumference}, ${circumference}`;
+      progressRing.style.strokeDasharray = strokeDasharray;
+    }
+    
+    function updateNavigationButtons() {
+      prevBtn.disabled = currentIdx === 0;
+      nextBtn.disabled = currentIdx === order.length - 1;
+      
+      // Reset flip state when changing cards
+      isFlipped = false;
+      flashcard.classList.remove('flipped');
+    }
+    
+    function flipCard() {
+      isFlipped = !isFlipped;
+      flashcard.classList.toggle('flipped', isFlipped);
+    }
+    
+    function goToCard(direction) {
+      if (direction === 'next' && currentIdx < order.length - 1) {
+        currentIdx++;
+        flashcard.classList.add('slide-in-right');
+      } else if (direction === 'prev' && currentIdx > 0) {
+        currentIdx--;
+        flashcard.classList.add('slide-in-left');
+      }
+      
+      setTimeout(() => {
+        flashcard.classList.remove('slide-in-right', 'slide-in-left');
+      }, 400);
+      
+      renderFlashcard();
+    }
+    
+    function markAnswer(isCorrect) {
+      const idx = order[currentIdx];
+      const item = DATA[idx];
+      const previousAnswer = userAnswers.get(item.id);
+      
+      // Update score
+      if (previousAnswer === 'correct' && !isCorrect) {
+        score--;
+      } else if (previousAnswer !== 'correct' && isCorrect) {
+        score++;
+      }
+      
+      userAnswers.set(item.id, isCorrect ? 'correct' : 'incorrect');
+      renderFlashcard();
     }
 
-    // Events
-    cardsEl.addEventListener('click', (e)=>{
-      const card = e.target.closest('article');
-      if(!card) return;
-      const id = Number(card.dataset.id);
-      const item = DATA.find(d=>d.id===id);
-
-      if(e.target.closest('.choice')){
-        const btn = e.target.closest('.choice');
-        const i = Number(btn.dataset.choice);
-        selected.set(id, i);
-        card.querySelectorAll('.choice').forEach(ch=>ch.classList.remove('selected'));
-        btn.classList.add('selected');
-      }
-
-      if(e.target.closest('.reveal')){
-        if(revealed.has(id)) revealed.delete(id); else revealed.add(id);
-        render();
-      }
-
-      if(e.target.closest('.check')){
-        if(!selected.has(id)) { alert("Bitte wähle eine Antwort."); return; }
-        if(!checked.has(id)){
-          checked.add(id);
-          if(selected.get(id) === item.a) score++;
+    // Touch and Mouse Event Handling
+    function handleStart(e) {
+      const touch = e.touches ? e.touches[0] : e;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      isDragging = true;
+    }
+    
+    function handleMove(e) {
+      if (!isDragging) return;
+      
+      const touch = e.touches ? e.touches[0] : e;
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+      
+      // Show swipe indicators
+      const leftIndicator = document.querySelector('.swipe-left');
+      const rightIndicator = document.querySelector('.swipe-right');
+      
+      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+        if (deltaX > 0 && currentIdx > 0) {
+          leftIndicator.style.opacity = Math.min(deltaX / 100, 1);
+          rightIndicator.style.opacity = 0;
+        } else if (deltaX < 0 && currentIdx < order.length - 1) {
+          rightIndicator.style.opacity = Math.min(Math.abs(deltaX) / 100, 1);
+          leftIndicator.style.opacity = 0;
         }
-        revealed.add(id);
-        render();
       }
-
-      if(e.target.closest('.prev')){
-        if(currentIdx>0){ currentIdx--; render(); }
-      }
-      if(e.target.closest('.next')){
-        if(currentIdx<order.length-1){ currentIdx++; render(); }
-      }
-    });
-
-    // Top controls
-    document.getElementById('shuffleBtn').addEventListener('click', ()=>{
-      order = order.sort(()=>Math.random()-0.5);
-      currentIdx = 0;
-      render();
-      window.scrollTo({top:0,behavior:'smooth'});
-    });
-    document.getElementById('resetBtn').addEventListener('click', ()=>{
-      order = [...DATA.keys()];
-      selected.clear(); revealed.clear(); checked.clear(); score = 0;
-      currentIdx = 0;
-      render();
-      window.scrollTo({top:0,behavior:'smooth'});
-    });
-    document.getElementById('revealAll').addEventListener('click', ()=>{
-  DATA.forEach(d=>revealed.add(d.id));
-  render();
-    });
-    document.getElementById('hideAll').addEventListener('click', ()=>{
-  revealed.clear(); render();
-    });
-
-    // Dark / Light
-    const darkBtn = document.getElementById('darkToggle');
-    function setDark(d){
-      document.documentElement.classList.toggle('dark', d);
-      document.body.classList.toggle('bg-slate-900', d);
-      document.body.classList.toggle('text-slate-100', d);
     }
-    darkBtn.addEventListener('click', ()=>{
-      const isDark = document.documentElement.classList.contains('dark');
-      setDark(!isDark);
+    
+    function handleEnd(e) {
+      if (!isDragging) return;
+      
+      const touch = e.changedTouches ? e.changedTouches[0] : e;
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+      
+      // Hide indicators
+      document.querySelector('.swipe-left').style.opacity = 0;
+      document.querySelector('.swipe-right').style.opacity = 0;
+      
+      // Handle swipe
+      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 100) {
+        if (deltaX > 0) {
+          goToCard('prev');
+        } else {
+          goToCard('next');
+        }
+      }
+      
+      isDragging = false;
+    }
+    
+    // Add touch event listeners
+    flashcard.addEventListener('touchstart', handleStart, { passive: true });
+    flashcard.addEventListener('touchmove', handleMove, { passive: true });
+    flashcard.addEventListener('touchend', handleEnd, { passive: true });
+    
+    // Add mouse event listeners for desktop
+    flashcard.addEventListener('mousedown', handleStart);
+    flashcard.addEventListener('mousemove', handleMove);
+    flashcard.addEventListener('mouseup', handleEnd);
+    flashcard.addEventListener('mouseleave', handleEnd);
+    
+    // Choice selection on question side
+    questionContent.addEventListener('click', (e) => {
+      const choice = e.target.closest('.choice');
+      if (choice) {
+        // Remove previous selection
+        questionContent.querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
+        // Add selection to clicked choice
+        choice.classList.add('selected');
+      }
     });
-
+    
+    // Button Event Listeners
+    prevBtn.addEventListener('click', () => goToCard('prev'));
+    nextBtn.addEventListener('click', () => goToCard('next'));
+    flipBtn.addEventListener('click', flipCard);
+    correctBtn.addEventListener('click', () => markAnswer(true));
+    incorrectBtn.addEventListener('click', () => markAnswer(false));
+    
+    // Control buttons
+    shuffleBtn.addEventListener('click', () => {
+      order = order.sort(() => Math.random() - 0.5);
+      currentIdx = 0;
+      renderFlashcard();
+    });
+    
+    resetBtn.addEventListener('click', () => {
+      order = [...DATA.keys()];
+      userAnswers.clear();
+      score = 0;
+      currentIdx = 0;
+      renderFlashcard();
+    });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      switch(e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          goToCard('prev');
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          goToCard('next');
+          break;
+        case ' ':
+        case 'Enter':
+          e.preventDefault();
+          flipCard();
+          break;
+        case '1':
+          e.preventDefault();
+          markAnswer(true);
+          break;
+        case '0':
+          e.preventDefault();
+          markAnswer(false);
+          break;
+      }
+    });
+    
     // Initial render
-  render();
+    renderFlashcard();
   </script>
 </body>
 </html>
