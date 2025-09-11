@@ -17,7 +17,7 @@
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased">
-  <div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="max-w-xl mx-auto px-2 py-4">
     <!-- Header -->
     <header class="flex items-start justify-between gap-4">
       <div>
@@ -66,7 +66,7 @@
 
     <!-- Questions -->
     <section id="cards" class="mt-6 grid gap-4">
-      <!-- JS will inject cards here -->
+  <!-- JS will inject one card here -->
     </section>
 
     <!-- Footer -->
@@ -120,7 +120,7 @@
       {id:40,q:"Wie heißt die Hymne Deutschlands?",c:["Wacht am Rhein","Deutschlandlied","Ode an die Freude","Einigkeit & Recht & Freiheit"],a:1,tip:"Deutschlandlied (sing verse 3)."}
     ];
 
-    // Render
+    // Mobile-friendly: show one card at a time
     const cardsEl = document.getElementById('cards');
     const totalCountEl = document.getElementById('totalCount');
     const doneCountEl = document.getElementById('doneCount');
@@ -132,71 +132,79 @@
     let revealed = new Set(); // ids revealed
     let checked = new Set();  // ids checked (answered)
     let score = 0;
+    let currentIdx = 0; // index in order
 
     function fmtLetter(i){ return ["a","b","c","d"][i]; }
 
     function render(){
       totalCountEl.textContent = DATA.length.toString();
       cardsEl.innerHTML = "";
-      order.forEach(idx=>{
-        const item = DATA[idx];
-        const isRevealed = revealed.has(item.id);
-        const isChecked = checked.has(item.id);
-        const sel = selected.get(item.id);
+      const idx = order[currentIdx];
+      const item = DATA[idx];
+      const isRevealed = revealed.has(item.id);
+      const isChecked = checked.has(item.id);
+      const sel = selected.get(item.id);
 
-        const card = document.createElement('article');
-        card.className = `rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5 transition ${isRevealed?'answer-revealed':''} ${isChecked?'show-tip':''}`;
-        card.dataset.id = item.id;
+      const card = document.createElement('article');
+      card.className = `rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5 transition ${isRevealed?'answer-revealed':''} ${isChecked?'show-tip':''}`;
+      card.dataset.id = item.id;
 
-        // Header
-        const head = document.createElement('div');
-        head.className = "flex items-start justify-between gap-3";
-        head.innerHTML = `
-          <div class="font-semibold text-slate-800">#${item.id}. ${item.q}</div>
-          <div class="flex gap-2">
-            <button class="reveal px-3 py-1.5 rounded-lg border border-slate-300 text-sm hover:bg-slate-50">${isRevealed?'Lösung verbergen':'Lösung zeigen'}</button>
-            <button class="check px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">Prüfen</button>
+      // Header
+      const head = document.createElement('div');
+      head.className = "flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between";
+      head.innerHTML = `
+        <div class="font-semibold text-slate-800">#${item.id}. ${item.q}</div>
+        <div class="flex gap-2 mt-2 sm:mt-0">
+          <button class="reveal px-3 py-1.5 rounded-lg border border-slate-300 text-sm hover:bg-slate-50">${isRevealed?'Lösung verbergen':'Lösung zeigen'}</button>
+          <button class="check px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">Prüfen</button>
+        </div>
+      `;
+      card.appendChild(head);
+
+      // Choices
+      const list = document.createElement('div');
+      list.className = "mt-3 grid gap-2";
+      item.c.forEach((text, i)=>{
+        const isCorrect = i === item.a;
+        const isSelected = sel === i;
+
+        const btn = document.createElement('button');
+        btn.type = "button";
+        btn.className = `choice w-full text-left px-3 py-2 rounded-xl border ${isSelected?'selected':''} ${isCorrect?'correct':''} ${isSelected && isRevealed && !isCorrect?'incorrect selected':''} border-slate-300 hover:bg-slate-50`;
+        btn.dataset.choice = i;
+        btn.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="mt-0.5 shrink-0 font-mono text-xs uppercase tracking-wide text-slate-500">${fmtLetter(i)})</div>
+            <div class="grow">${text}</div>
           </div>
         `;
-        card.appendChild(head);
-
-        // Choices
-        const list = document.createElement('div');
-        list.className = "mt-3 grid gap-2";
-        item.c.forEach((text, i)=>{
-          const isCorrect = i === item.a;
-          const isSelected = sel === i;
-
-          const btn = document.createElement('button');
-          btn.type = "button";
-          btn.className = `choice w-full text-left px-3 py-2 rounded-xl border ${isSelected?'selected':''} ${isCorrect?'correct':''} ${isSelected && isRevealed && !isCorrect?'incorrect selected':''} border-slate-300 hover:bg-slate-50`;
-          btn.dataset.choice = i;
-          btn.innerHTML = `
-            <div class="flex items-start gap-3">
-              <div class="mt-0.5 shrink-0 font-mono text-xs uppercase tracking-wide text-slate-500">${fmtLetter(i)})</div>
-              <div class="grow">${text}</div>
-            </div>
-          `;
-          list.appendChild(btn);
-        });
-        card.appendChild(list);
-
-        // Tip
-        const tip = document.createElement('div');
-        tip.className = "tip mt-3 text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-xl p-3";
-        tip.innerHTML = `🧠 <span class="font-medium">Memory:</span> ${item.tip}`;
-        card.appendChild(tip);
-
-        // Footer row (status)
-        const foot = document.createElement('div');
-        foot.className = "mt-3 text-xs text-slate-500 flex items-center justify-between";
-        const status = isChecked ? (sel===item.a ? "✅ Richtig" : "❌ Falsch") : "—";
-        foot.innerHTML = `<div>Status: <span class="font-medium">${status}</span></div>
-                          <button class="showTip underline underline-offset-2 hover:text-slate-700">${isChecked?'Merkhilfe ausblenden':'Merkhilfe anzeigen'}</button>`;
-        card.appendChild(foot);
-
-        cardsEl.appendChild(card);
+        list.appendChild(btn);
       });
+      card.appendChild(list);
+
+      // Tip (always visible for memory)
+      const tip = document.createElement('div');
+      tip.className = "tip mt-3 text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-xl p-3 block";
+      tip.innerHTML = `🧠 <span class="font-medium">Memory:</span> ${item.tip}`;
+      card.appendChild(tip);
+
+      // Footer row (status)
+      const foot = document.createElement('div');
+      foot.className = "mt-3 text-xs text-slate-500 flex items-center justify-between";
+      const status = isChecked ? (sel===item.a ? "✅ Richtig" : "❌ Falsch") : "—";
+      foot.innerHTML = `<div>Status: <span class="font-medium">${status}</span></div>`;
+      card.appendChild(foot);
+
+      // Navigation
+      const nav = document.createElement('div');
+      nav.className = "mt-4 flex justify-between gap-2";
+      nav.innerHTML = `
+        <button class="prev px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm w-1/2" ${currentIdx===0?'disabled':''}>← Zurück</button>
+        <button class="next px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm w-1/2" ${currentIdx===order.length-1?'disabled':''}>Weiter →</button>
+      `;
+      card.appendChild(nav);
+
+      cardsEl.appendChild(card);
       updateProgress();
     }
 
@@ -219,7 +227,6 @@
         const btn = e.target.closest('.choice');
         const i = Number(btn.dataset.choice);
         selected.set(id, i);
-        // unselect others
         card.querySelectorAll('.choice').forEach(ch=>ch.classList.remove('selected'));
         btn.classList.add('selected');
       }
@@ -239,29 +246,34 @@
         render();
       }
 
-      if(e.target.closest('.showTip')){
-        card.classList.toggle('show-tip');
+      if(e.target.closest('.prev')){
+        if(currentIdx>0){ currentIdx--; render(); }
+      }
+      if(e.target.closest('.next')){
+        if(currentIdx<order.length-1){ currentIdx++; render(); }
       }
     });
 
     // Top controls
     document.getElementById('shuffleBtn').addEventListener('click', ()=>{
       order = order.sort(()=>Math.random()-0.5);
+      currentIdx = 0;
       render();
       window.scrollTo({top:0,behavior:'smooth'});
     });
     document.getElementById('resetBtn').addEventListener('click', ()=>{
       order = [...DATA.keys()];
       selected.clear(); revealed.clear(); checked.clear(); score = 0;
+      currentIdx = 0;
       render();
       window.scrollTo({top:0,behavior:'smooth'});
     });
     document.getElementById('revealAll').addEventListener('click', ()=>{
-      DATA.forEach(d=>revealed.add(d.id));
-      render();
+  DATA.forEach(d=>revealed.add(d.id));
+  render();
     });
     document.getElementById('hideAll').addEventListener('click', ()=>{
-      revealed.clear(); render();
+  revealed.clear(); render();
     });
 
     // Dark / Light
@@ -277,7 +289,7 @@
     });
 
     // Initial render
-    render();
+  render();
   </script>
 </body>
 </html>
