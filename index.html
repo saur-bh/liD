@@ -184,33 +184,10 @@
       </div>
     </div>
 
-    <!-- Flashcard Container -->
-    <div class="flashcard-container relative">
-      <!-- Swipe Indicators -->
-      <div class="swipe-indicator swipe-left">
-        <div class="text-4xl">👈</div>
-        <div class="text-sm font-medium">Previous</div>
-      </div>
-      <div class="swipe-indicator swipe-right">
-        <div class="text-4xl">👉</div>
-        <div class="text-sm font-medium">Next</div>
-      </div>
-      
-      <!-- Flashcard -->
-      <div id="flashcard" class="flashcard bg-white shadow-xl border border-white/20">
-        <!-- Front Face (Question) -->
-        <div class="flashcard-face flashcard-front bg-gradient-to-br from-blue-50 to-indigo-50">
-          <div id="questionContent" class="text-center">
-            <!-- Question content will be injected here -->
-          </div>
-        </div>
-        
-        <!-- Back Face (Answer) -->
-        <div class="flashcard-face flashcard-back bg-gradient-to-br from-green-50 to-emerald-50">
-          <div id="answerContent" class="text-center">
-            <!-- Answer content will be injected here -->
-          </div>
-        </div>
+    <!-- Question Container -->
+    <div class="bg-white shadow-xl border border-white/20 rounded-2xl p-6 min-h-[500px]">
+      <div id="questionContent" class="text-center">
+        <!-- Question content will be injected here -->
       </div>
     </div>
     
@@ -220,22 +197,8 @@
         ← Previous
       </button>
       
-      <button id="flipBtn" class="btn-primary text-white px-6 py-3 rounded-xl font-medium transition-all">
-        🔄 Flip
-      </button>
-      
       <button id="nextBtn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">
         Next →
-      </button>
-    </div>
-    
-    <!-- Action Buttons -->
-    <div class="grid grid-cols-2 gap-3 mt-4">
-      <button id="correctBtn" class="btn-success text-white px-4 py-3 rounded-xl font-medium transition-all">
-        ✅ Correct
-      </button>
-      <button id="incorrectBtn" class="btn-danger text-white px-4 py-3 rounded-xl font-medium transition-all">
-        ❌ Incorrect
       </button>
     </div>
 
@@ -293,8 +256,6 @@
 
     // Flashcard App State
     const questionContent = document.getElementById('questionContent');
-    const answerContent = document.getElementById('answerContent');
-    const flashcard = document.getElementById('flashcard');
     const totalCountEl = document.getElementById('totalCount');
     const doneCountEl = document.getElementById('doneCount');
     const scoreCountEl = document.getElementById('scoreCount');
@@ -305,22 +266,14 @@
     // Navigation elements
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
-    const flipBtn = document.getElementById('flipBtn');
-    const correctBtn = document.getElementById('correctBtn');
-    const incorrectBtn = document.getElementById('incorrectBtn');
     const shuffleBtn = document.getElementById('shuffleBtn');
     const resetBtn = document.getElementById('resetBtn');
 
     let order = [...DATA.keys()];
-    let userAnswers = new Map(); // id -> 'correct' | 'incorrect' | null
+    let userAnswers = new Map(); // id -> { selected: number, isCorrect: boolean, submitted: boolean }
     let score = 0;
     let currentIdx = 0;
-    let isFlipped = false;
-    
-    // Touch/swipe handling
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
+    let selectedChoice = null;
 
     function fmtLetter(i){ return ["a","b","c","d"][i]; }
 
@@ -332,43 +285,58 @@
       // Update card counter
       currentCardEl.textContent = (currentIdx + 1).toString();
       
-      // Render question side
-      questionContent.innerHTML = `
-        <div class="mb-4">
-          <div class="text-sm text-blue-600 font-medium mb-2">Question ${item.id}/40</div>
-          <h2 class="text-xl font-bold text-slate-800 mb-6">${item.q}</h2>
-        </div>
-        <div class="space-y-3">
-          ${item.c.map((choice, i) => `
-            <div class="choice p-3 rounded-lg border-2 border-slate-200 bg-white hover:border-blue-300 transition-all cursor-pointer" data-choice="${i}">
-              <div class="flex items-start gap-3">
-                <div class="w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs font-bold">
-                  ${fmtLetter(i).toUpperCase()}
-                </div>
-                <div class="flex-1 text-slate-700">${choice}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-        <div class="mt-6 text-center">
-          <p class="text-sm text-slate-500">Select an answer, then flip to see the solution</p>
-        </div>
-      `;
+      // Reset selected choice when changing cards
+      if (!userAnswer || !userAnswer.submitted) {
+        selectedChoice = null;
+      }
       
-      // Render answer side
-      const correctChoice = item.c[item.a];
-      answerContent.innerHTML = `
-        <div class="text-center">
-          <div class="text-sm text-green-600 font-medium mb-2">Answer ${item.id}/40</div>
-          <h2 class="text-xl font-bold text-slate-800 mb-4">${item.q}</h2>
+      // Show answer and tip if submitted, otherwise show question
+      if (userAnswer && userAnswer.submitted) {
+        const correctChoice = item.c[item.a];
+        questionContent.innerHTML = `
+          <div class="mb-4">
+            <div class="text-sm text-blue-600 font-medium mb-2">Question ${item.id}/40</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-6">${item.q}</h2>
+          </div>
           
-          <div class="bg-green-100 border-2 border-green-300 rounded-lg p-4 mb-4">
-            <div class="flex items-center gap-3 justify-center">
-              <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold">
-                ${fmtLetter(item.a).toUpperCase()}
-              </div>
-              <div class="text-green-800 font-medium">${correctChoice}</div>
+          <div class="space-y-3 mb-6">
+            ${item.c.map((choice, i) => {
+              let choiceClass = "choice p-3 rounded-lg border-2 transition-all";
+              let circleClass = "w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold";
+              
+              if (i === item.a) {
+                choiceClass += " correct";
+                circleClass += " bg-green-500 border-green-500 text-white";
+              } else if (i === userAnswer.selected && i !== item.a) {
+                choiceClass += " incorrect";
+                circleClass += " bg-red-500 border-red-500 text-white";
+              } else {
+                choiceClass += " border-slate-200 bg-white";
+                circleClass += " border-slate-300";
+              }
+              
+              return `
+                <div class="${choiceClass}">
+                  <div class="flex items-start gap-3">
+                    <div class="${circleClass}">
+                      ${fmtLetter(i).toUpperCase()}
+                    </div>
+                    <div class="flex-1 text-slate-700">${choice}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          
+          <div class="text-center mb-6">
+            <div class="text-lg ${userAnswer.isCorrect ? 'text-green-600' : 'text-red-600'} font-bold mb-4">
+              ${userAnswer.isCorrect ? '✅ Correct!' : '❌ Incorrect'}
             </div>
+            ${!userAnswer.isCorrect ? `
+              <div class="text-sm text-slate-600 mb-4">
+                You selected: <strong>${fmtLetter(userAnswer.selected).toUpperCase()}) ${item.c[userAnswer.selected]}</strong>
+              </div>
+            ` : ''}
           </div>
           
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
@@ -377,22 +345,56 @@
             </div>
           </div>
           
-          ${userAnswer ? `
-            <div class="text-sm ${userAnswer === 'correct' ? 'text-green-600' : 'text-red-600'}">
-              Your answer: ${userAnswer === 'correct' ? '✅ Correct' : '❌ Incorrect'}
-            </div>
-          ` : `
-            <p class="text-sm text-slate-500">Mark your answer as correct or incorrect</p>
-          `}
-        </div>
-      `;
+          <div class="text-center">
+            <button id="nextQuestionBtn" class="btn-primary text-white px-6 py-3 rounded-lg font-medium transition-all">
+              Next Question →
+            </button>
+          </div>
+        `;
+      } else {
+        // Show question
+        questionContent.innerHTML = `
+          <div class="mb-4">
+            <div class="text-sm text-blue-600 font-medium mb-2">Question ${item.id}/40</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-6">${item.q}</h2>
+          </div>
+          <div class="space-y-3">
+            ${item.c.map((choice, i) => {
+              let choiceClass = "choice p-3 rounded-lg border-2 border-slate-200 bg-white hover:border-blue-300 transition-all cursor-pointer";
+              let circleClass = "w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs font-bold";
+              
+              if (selectedChoice === i) {
+                choiceClass += " selected";
+                circleClass += " bg-blue-500 border-blue-500 text-white";
+              }
+              
+              return `
+                <div class="${choiceClass}" data-choice="${i}">
+                  <div class="flex items-start gap-3">
+                    <div class="${circleClass}">
+                      ${fmtLetter(i).toUpperCase()}
+                    </div>
+                    <div class="flex-1 text-slate-700">${choice}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="mt-6 text-center">
+            <button id="submitBtn" class="btn-primary text-white px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed" ${selectedChoice === null ? 'disabled' : ''}>
+              Submit Answer
+            </button>
+            <p class="text-sm text-slate-500 mt-2">Select an answer and click submit</p>
+          </div>
+        `;
+      }
       
       updateProgress();
       updateNavigationButtons();
     }
 
     function updateProgress() {
-      const answered = userAnswers.size;
+      const answered = Array.from(userAnswers.values()).filter(answer => answer.submitted).length;
       const total = DATA.length;
       const percentage = Math.round((answered / total) * 100);
       
@@ -409,130 +411,84 @@
     function updateNavigationButtons() {
       prevBtn.disabled = currentIdx === 0;
       nextBtn.disabled = currentIdx === order.length - 1;
-      
-      // Reset flip state when changing cards
-      isFlipped = false;
-      flashcard.classList.remove('flipped');
     }
     
-    function flipCard() {
-      isFlipped = !isFlipped;
-      flashcard.classList.toggle('flipped', isFlipped);
+    function goToNextQuestion() {
+      if (currentIdx < order.length - 1) {
+        currentIdx++;
+        renderFlashcard();
+      }
     }
     
     function goToCard(direction) {
       if (direction === 'next' && currentIdx < order.length - 1) {
         currentIdx++;
-        flashcard.classList.add('slide-in-right');
       } else if (direction === 'prev' && currentIdx > 0) {
         currentIdx--;
-        flashcard.classList.add('slide-in-left');
       }
-      
-      setTimeout(() => {
-        flashcard.classList.remove('slide-in-right', 'slide-in-left');
-      }, 400);
       
       renderFlashcard();
     }
     
-    function markAnswer(isCorrect) {
+    function submitAnswer() {
+      if (selectedChoice === null) return;
+      
       const idx = order[currentIdx];
       const item = DATA[idx];
-      const previousAnswer = userAnswers.get(item.id);
+      const isCorrect = selectedChoice === item.a;
       
       // Update score
-      if (previousAnswer === 'correct' && !isCorrect) {
-        score--;
-      } else if (previousAnswer !== 'correct' && isCorrect) {
+      const previousAnswer = userAnswers.get(item.id);
+      if (previousAnswer && previousAnswer.submitted) {
+        if (previousAnswer.isCorrect && !isCorrect) {
+          score--;
+        } else if (!previousAnswer.isCorrect && isCorrect) {
+          score++;
+        }
+      } else if (isCorrect) {
         score++;
       }
       
-      userAnswers.set(item.id, isCorrect ? 'correct' : 'incorrect');
+      userAnswers.set(item.id, {
+        selected: selectedChoice,
+        isCorrect: isCorrect,
+        submitted: true
+      });
+      
       renderFlashcard();
     }
+    
 
-    // Touch and Mouse Event Handling
-    function handleStart(e) {
-      const touch = e.touches ? e.touches[0] : e;
-      startX = touch.clientX;
-      startY = touch.clientY;
-      isDragging = true;
-    }
-    
-    function handleMove(e) {
-      if (!isDragging) return;
-      
-      const touch = e.touches ? e.touches[0] : e;
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-      
-      // Show swipe indicators
-      const leftIndicator = document.querySelector('.swipe-left');
-      const rightIndicator = document.querySelector('.swipe-right');
-      
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-        if (deltaX > 0 && currentIdx > 0) {
-          leftIndicator.style.opacity = Math.min(deltaX / 100, 1);
-          rightIndicator.style.opacity = 0;
-        } else if (deltaX < 0 && currentIdx < order.length - 1) {
-          rightIndicator.style.opacity = Math.min(Math.abs(deltaX) / 100, 1);
-          leftIndicator.style.opacity = 0;
-        }
-      }
-    }
-    
-    function handleEnd(e) {
-      if (!isDragging) return;
-      
-      const touch = e.changedTouches ? e.changedTouches[0] : e;
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-      
-      // Hide indicators
-      document.querySelector('.swipe-left').style.opacity = 0;
-      document.querySelector('.swipe-right').style.opacity = 0;
-      
-      // Handle swipe
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 100) {
-        if (deltaX > 0) {
-          goToCard('prev');
-        } else {
-          goToCard('next');
-        }
-      }
-      
-      isDragging = false;
-    }
-    
-    // Add touch event listeners
-    flashcard.addEventListener('touchstart', handleStart, { passive: true });
-    flashcard.addEventListener('touchmove', handleMove, { passive: true });
-    flashcard.addEventListener('touchend', handleEnd, { passive: true });
-    
-    // Add mouse event listeners for desktop
-    flashcard.addEventListener('mousedown', handleStart);
-    flashcard.addEventListener('mousemove', handleMove);
-    flashcard.addEventListener('mouseup', handleEnd);
-    flashcard.addEventListener('mouseleave', handleEnd);
     
     // Choice selection on question side
     questionContent.addEventListener('click', (e) => {
       const choice = e.target.closest('.choice');
       if (choice) {
-        // Remove previous selection
-        questionContent.querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
-        // Add selection to clicked choice
-        choice.classList.add('selected');
+        const idx = order[currentIdx];
+        const item = DATA[idx];
+        const userAnswer = userAnswers.get(item.id);
+        
+        // Don't allow selection if already submitted
+        if (userAnswer && userAnswer.submitted) return;
+        
+        selectedChoice = parseInt(choice.dataset.choice);
+        renderFlashcard();
+      }
+      
+      // Handle submit button click
+      if (e.target.id === 'submitBtn') {
+        submitAnswer();
+      }
+      
+      // Handle next question button click
+      if (e.target.id === 'nextQuestionBtn') {
+        goToNextQuestion();
       }
     });
     
     // Button Event Listeners
     prevBtn.addEventListener('click', () => goToCard('prev'));
     nextBtn.addEventListener('click', () => goToCard('next'));
-    flipBtn.addEventListener('click', flipCard);
-    correctBtn.addEventListener('click', () => markAnswer(true));
-    incorrectBtn.addEventListener('click', () => markAnswer(false));
     
     // Control buttons
     shuffleBtn.addEventListener('click', () => {
@@ -546,6 +502,7 @@
       userAnswers.clear();
       score = 0;
       currentIdx = 0;
+      selectedChoice = null;
       renderFlashcard();
     });
     
@@ -560,18 +517,27 @@
           e.preventDefault();
           goToCard('next');
           break;
-        case ' ':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+          e.preventDefault();
+          const choiceIndex = parseInt(e.key) - 1;
+          if (choiceIndex >= 0 && choiceIndex < 4) {
+            const idx = order[currentIdx];
+            const item = DATA[idx];
+            const userAnswer = userAnswers.get(item.id);
+            if (!userAnswer || !userAnswer.submitted) {
+              selectedChoice = choiceIndex;
+              renderFlashcard();
+            }
+          }
+          break;
         case 'Enter':
           e.preventDefault();
-          flipCard();
-          break;
-        case '1':
-          e.preventDefault();
-          markAnswer(true);
-          break;
-        case '0':
-          e.preventDefault();
-          markAnswer(false);
+          if (selectedChoice !== null) {
+            submitAnswer();
+          }
           break;
       }
     });
