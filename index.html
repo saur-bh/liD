@@ -290,7 +290,7 @@
         selectedChoice = null;
       }
       
-      // Show answer and tip if submitted, otherwise show question
+      // Show answer and tip if answered, otherwise show question
       if (userAnswer && userAnswer.submitted) {
         const correctChoice = item.c[item.a];
         questionContent.innerHTML = `
@@ -363,11 +363,6 @@
               let choiceClass = "choice p-3 rounded-lg border-2 border-slate-200 bg-white hover:border-blue-300 transition-all cursor-pointer";
               let circleClass = "w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs font-bold";
               
-              if (selectedChoice === i) {
-                choiceClass += " selected";
-                circleClass += " bg-blue-500 border-blue-500 text-white";
-              }
-              
               return `
                 <div class="${choiceClass}" data-choice="${i}">
                   <div class="flex items-start gap-3">
@@ -381,10 +376,7 @@
             }).join('')}
           </div>
           <div class="mt-6 text-center">
-            <button id="submitBtn" class="btn-primary text-white px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed" ${selectedChoice === null ? 'disabled' : ''}>
-              Submit Answer
-            </button>
-            <p class="text-sm text-slate-500 mt-2">Select an answer and click submit</p>
+            <p class="text-sm text-slate-500">Click on an answer to see the result</p>
           </div>
         `;
       }
@@ -430,12 +422,10 @@
       renderFlashcard();
     }
     
-    function submitAnswer() {
-      if (selectedChoice === null) return;
-      
+    function selectAnswer(choiceIndex) {
       const idx = order[currentIdx];
       const item = DATA[idx];
-      const isCorrect = selectedChoice === item.a;
+      const isCorrect = choiceIndex === item.a;
       
       // Update score
       const previousAnswer = userAnswers.get(item.id);
@@ -450,7 +440,7 @@
       }
       
       userAnswers.set(item.id, {
-        selected: selectedChoice,
+        selected: choiceIndex,
         isCorrect: isCorrect,
         submitted: true
       });
@@ -468,16 +458,11 @@
         const item = DATA[idx];
         const userAnswer = userAnswers.get(item.id);
         
-        // Don't allow selection if already submitted
+        // Don't allow selection if already answered
         if (userAnswer && userAnswer.submitted) return;
         
-        selectedChoice = parseInt(choice.dataset.choice);
-        renderFlashcard();
-      }
-      
-      // Handle submit button click
-      if (e.target.id === 'submitBtn') {
-        submitAnswer();
+        const choiceIndex = parseInt(choice.dataset.choice);
+        selectAnswer(choiceIndex);
       }
       
       // Handle next question button click
@@ -528,15 +513,8 @@
             const item = DATA[idx];
             const userAnswer = userAnswers.get(item.id);
             if (!userAnswer || !userAnswer.submitted) {
-              selectedChoice = choiceIndex;
-              renderFlashcard();
+              selectAnswer(choiceIndex);
             }
-          }
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (selectedChoice !== null) {
-            submitAnswer();
           }
           break;
       }
